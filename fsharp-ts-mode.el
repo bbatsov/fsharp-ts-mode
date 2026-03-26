@@ -370,6 +370,25 @@ level, not the body's."
   (and (string= (treesit-node-type node) "line_comment")
        (null (treesit-node-next-sibling node t))))
 
+(defun fsharp-ts-mode--bracket-item-same-line-p (_node parent &rest _)
+  "Return non-nil if PARENT is a bracket expression with first item inline.
+Only matches `list_expression', `array_expression', and `paren_expression'
+where the first element sits on the same line as the opening bracket."
+  (and (member (treesit-node-type parent)
+               '("list_expression" "array_expression" "paren_expression"))
+       (let* ((bracket (treesit-node-child parent 0))
+              (first-item (treesit-node-child parent 0 t)))
+         (and first-item
+              (= (line-number-at-pos (treesit-node-start bracket))
+                 (line-number-at-pos (treesit-node-start first-item)))))))
+
+(defun fsharp-ts-mode--first-item-anchor (_node parent &rest _)
+  "Return the position of the first named child inside PARENT.
+Used to align subsequent items in brackets with the first item."
+  (let ((first-item (treesit-node-child parent 0 t)))
+    (when first-item
+      (treesit-node-start first-item))))
+
 (defun fsharp-ts-mode--script-top-level-p (_node parent &rest _)
   "Return non-nil if PARENT is part of a top-level expression chain.
 In script files without a module declaration, bare expressions like
@@ -463,7 +482,10 @@ The return value is suitable for `treesit-simple-indent-rules'."
      ;; Member definitions
      ((parent-is "member_defn") parent-bol fsharp-ts-indent-offset)
 
-     ;; Compound expressions
+     ;; Compound expressions: when the first item is on the same line
+     ;; as the bracket, align subsequent items with it.
+     (fsharp-ts-mode--bracket-item-same-line-p fsharp-ts-mode--first-item-anchor 0)
+     ;; Otherwise fall back to standard indentation from the bracket.
      ((parent-is "paren_expression") parent-bol fsharp-ts-indent-offset)
      ((parent-is "list_expression") parent-bol fsharp-ts-indent-offset)
      ((parent-is "array_expression") parent-bol fsharp-ts-indent-offset)
