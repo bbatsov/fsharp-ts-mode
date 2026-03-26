@@ -171,155 +171,136 @@ version that requires a newer grammar."
 (defun fsharp-ts-mode--font-lock-settings (language)
   "Return tree-sitter font-lock settings for LANGUAGE.
 The return value is suitable for `treesit-font-lock-settings'."
-  (treesit-font-lock-rules
-   ;; Level 1: comments
-   :language language
-   :feature 'comment
-   '(;; Doc comments start with ///
-     (((line_comment) @font-lock-doc-face)
-      (:match "^///" @font-lock-doc-face))
-     (line_comment) @font-lock-comment-face
-     (block_comment) @font-lock-comment-face)
+  (append
+   ;; Shared rules that work with both fsharp and fsharp-signature grammars
+   (treesit-font-lock-rules
+    :language language
+    :feature 'comment
+    '(;; Doc comments start with ///
+      (((line_comment) @font-lock-doc-face)
+       (:match "^///" @font-lock-doc-face))
+      (line_comment) @font-lock-comment-face
+      (block_comment) @font-lock-comment-face)
 
-   ;; Level 1: definitions
-   :language language
+    :language language
+    :feature 'string
+    :override t
+    '([(string) (verbatim_string) (triple_quoted_string)
+       (char)] @font-lock-string-face)
+
+    :language language
+    :feature 'type
+    `((simple_type (long_identifier) @font-lock-type-face)
+      (function_type "->" @font-lock-type-face)
+      (namespace (long_identifier) @font-lock-type-face))
+
+    :language language
+    :feature 'bracket
+    '((["(" ")" "[" "]" "{" "}" "[|" "|]" "[<" ">]"]) @font-lock-bracket-face)
+
+    :language language
+    :feature 'delimiter
+    '((["," ";" ":"]) @font-lock-delimiter-face)
+
+    :language language
+    :feature 'variable
+    '((identifier) @font-lock-variable-use-face))
+
+   ;; Grammar-specific rules
+   (if (eq language 'fsharp)
+       (fsharp-ts-mode--font-lock-settings-fsharp)
+     (fsharp-ts-mode--font-lock-settings-signature))))
+
+(defun fsharp-ts-mode--font-lock-settings-fsharp ()
+  "Return fsharp-specific font-lock rules."
+  (treesit-font-lock-rules
+   :language 'fsharp
    :feature 'definition
-   '(;; Function definitions: let f x y = ...
-     (function_or_value_defn
+   :override t
+   '((function_or_value_defn
       (function_declaration_left (identifier) @font-lock-function-name-face))
-     ;; Value definitions: let x = ...
      (function_or_value_defn
       (value_declaration_left
        (identifier_pattern
         (long_identifier_or_op (identifier) @font-lock-variable-name-face))))
-     ;; Type names in type definitions
      (type_name type_name: (_) @font-lock-type-face)
-     ;; Exception names
      (exception_definition
       exception_name: (_) @font-lock-type-face)
-     ;; Member names (properties and methods)
      (method_or_prop_defn
       name: (property_or_ident
              method: (identifier) @font-lock-function-name-face))
      (method_or_prop_defn
       name: (property_or_ident
              (identifier) @font-lock-function-name-face))
-     ;; Abstract member signatures
      (member_signature (identifier) @font-lock-function-name-face)
-     ;; Module definitions
      (module_defn (identifier) @font-lock-type-face))
 
-   ;; Level 2: keywords
-   :language language
+   :language 'fsharp
    :feature 'keyword
+   :override t
    `([,@fsharp-ts-mode--keywords] @font-lock-keyword-face
      (access_modifier) @font-lock-keyword-face
-     ;; Arrow in fun expressions and match rules
      (fun_expression "->" @font-lock-keyword-face)
      (rules (rule "->" @font-lock-keyword-face)))
 
-   ;; Level 2: strings
-   :language language
-   :feature 'string
-   :override t
-   '([(string) (verbatim_string) (triple_quoted_string)
-      (char)] @font-lock-string-face)
-
-   ;; Level 2: types
-   :language language
+   :language 'fsharp
    :feature 'type
-   `(;; DU constructors get constant face
-     (union_type_case (identifier) @font-lock-constant-face)
-     ;; Type annotations
-     (simple_type (long_identifier) @font-lock-type-face)
-     ;; Function type arrows
-     (function_type "->" @font-lock-type-face)
-     ;; Module/namespace names
-     (namespace name: (_) @font-lock-type-face)
+   :override t
+   `((union_type_case (identifier) @font-lock-constant-face)
      (named_module name: (_) @font-lock-type-face)
-     ;; Opened modules
      (import_decl (long_identifier) @font-lock-type-face)
-     ;; DU constructor usage in expressions
      ((long_identifier_or_op
        (long_identifier (identifier) @font-lock-constant-face))
       (:match "^[A-Z]" @font-lock-constant-face)))
 
-   ;; Level 3: attributes
-   :language language
+   :language 'fsharp
    :feature 'attribute
    '((attribute) @font-lock-preprocessor-face
      (compiler_directive_decl) @font-lock-preprocessor-face)
 
-   ;; Level 3: builtins
-   :language language
+   :language 'fsharp
    :feature 'builtin
+   :override t
    `(((long_identifier_or_op (identifier) @font-lock-builtin-face)
       (:match ,(regexp-opt fsharp-ts-mode--builtin-ids 'symbols)
               @font-lock-builtin-face))
-     ;; Builtin types
      ((simple_type
        (long_identifier (identifier) @font-lock-builtin-face))
       (:match ,(regexp-opt fsharp-ts-mode--builtin-types 'symbols)
               @font-lock-builtin-face)))
 
-   ;; Level 3: constants
-   ;; bool, unit, and null are supertype nodes inside `const' that
-   ;; cannot be queried directly, so we match via their parent.
-   :language language
+   :language 'fsharp
    :feature 'constant
    '(((const) @font-lock-constant-face
       (:match "^\\(true\\|false\\|()\\|null\\)$"
               @font-lock-constant-face)))
 
-   ;; Level 3: escape sequences (interpolation in format strings)
-   :language language
+   :language 'fsharp
    :feature 'escape-sequence
    :override t
    '((format_string_eval) @font-lock-escape-face)
 
-   ;; Level 3: numbers
-   :language language
+   :language 'fsharp
    :feature 'number
    :override t
    '([(int) (int32) (int64) (nativeint) (unativeint)
       (float) (decimal) (ieee32) (ieee64)
       (xint) (byte) (sbyte) (int16) (uint16) (uint32) (uint64)] @font-lock-number-face)
 
-   ;; Level 4: operators
-   :language language
+   :language 'fsharp
    :feature 'operator
    '((infix_op) @font-lock-operator-face
      (prefix_op) @font-lock-operator-face)
 
-   ;; Level 4: brackets
-   :language language
-   :feature 'bracket
-   '((["(" ")" "[" "]" "{" "}" "[|" "|]" "[<" ">]"]) @font-lock-bracket-face)
-
-   ;; Level 4: delimiters
-   :language language
-   :feature 'delimiter
-   '((["," ";" ":"]) @font-lock-delimiter-face)
-
-   ;; Level 4: variables (catch-all for identifiers)
-   :language language
-   :feature 'variable
-   '((identifier) @font-lock-variable-use-face)
-
-   ;; Level 4: properties (record fields, dot access)
-   :language language
+   :language 'fsharp
    :feature 'property
-   '(;; Record field definitions
-     (record_field (identifier) @font-lock-property-use-face)
-     ;; Record field initializers
+   '((record_field (identifier) @font-lock-property-use-face)
      (field_initializer field: (_) @font-lock-property-use-face))
 
-   ;; Level 4: function calls
-   :language language
+   :language 'fsharp
    :feature 'function
    :override t
-   '(;; Application: f x
-     (application_expression
+   '((application_expression
       :anchor
       (long_identifier_or_op (identifier) @font-lock-function-call-face))
      (application_expression
@@ -328,13 +309,32 @@ The return value is suitable for `treesit-font-lock-settings'."
        (long_identifier (_) @_mod
                         :anchor
                         (identifier) @font-lock-function-call-face)))
-     ;; x |> f
      ((infix_expression
        (_)
        (infix_op) @_op
        (long_identifier_or_op
         (identifier) @font-lock-function-call-face))
       (:match "^[|]>$" @_op)))))
+
+(defun fsharp-ts-mode--font-lock-settings-signature ()
+  "Return fsharp-signature-specific font-lock rules."
+  (treesit-font-lock-rules
+   :language 'fsharp-signature
+   :feature 'definition
+   :override t
+   '((value_definition
+      (value_declaration_left
+       (identifier_pattern
+        (long_identifier_or_op (identifier) @font-lock-variable-name-face))))
+     (member_signature (identifier) @font-lock-function-name-face))
+
+   :language 'fsharp-signature
+   :feature 'keyword
+   '((access_modifier) @font-lock-keyword-face
+     ["val" "namespace" "module" "abstract" "member"
+      "static" "default" "and" "mutable" "new"
+      "class" "struct" "interface" "enum"
+      "delegate" "end" "with"] @font-lock-keyword-face)))
 
 ;;;; Indentation
 

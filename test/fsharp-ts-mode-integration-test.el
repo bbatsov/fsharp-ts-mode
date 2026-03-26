@@ -74,7 +74,25 @@
         (insert original)
         (fsharp-ts-signature-mode)
         (indent-region (point-min) (point-max))
-        (expect (buffer-string) :to-equal original)))))
+        (expect (buffer-string) :to-equal original))))
+
+  (it "applies expected font-lock faces"
+    (let ((file (fsharp-ts-mode-test--resource-file "sample.fsi")))
+      (with-temp-buffer
+        (insert-file-contents file)
+        (let ((treesit-font-lock-level 4))
+          (fsharp-ts-signature-mode))
+        (font-lock-ensure)
+        ;; Check that "val" keyword is fontified
+        (goto-char (point-min))
+        (search-forward "val area")
+        (expect (get-text-property (match-beginning 0) 'face)
+                :to-equal 'font-lock-keyword-face)
+        ;; Check that a doc comment is fontified
+        (goto-char (point-min))
+        (search-forward "/// Compute the area")
+        (expect (get-text-property (match-beginning 0) 'face)
+                :to-equal 'font-lock-doc-face)))))
 
 (describe "integration: sample.fsx"
   (before-all
