@@ -335,6 +335,147 @@ The return value is suitable for `treesit-font-lock-settings'."
         (identifier) @font-lock-function-call-face))
       (:match "^[|]>$" @_op)))))
 
+;;;; Indentation
+
+(defvar fsharp-ts-mode--indent-body-tokens
+  '("=" "->" "then" "else" "do" "begin" "with" "finally"
+    "yield" "yield!" "return" "return!")
+  "Node types at end of line that imply the next line should be indented.")
+
+(defun fsharp-ts-mode--empty-line-offset (_node _parent bol &rest _)
+  "Compute extra indentation offset for an empty line at BOL.
+If the previous line ends with a body-expecting token (like `=', `->',
+`then', etc.), return `fsharp-ts-indent-offset', otherwise return 0."
+  (save-excursion
+    (goto-char bol)
+    (if (and (zerop (forward-line -1))
+             (progn
+               (end-of-line)
+               (skip-chars-backward " \t")
+               (> (point) (line-beginning-position)))
+             (let ((node (treesit-node-at (1- (point)))))
+               (and node
+                    (member (treesit-node-type node)
+                            fsharp-ts-mode--indent-body-tokens))))
+        fsharp-ts-indent-offset
+      0)))
+
+(defun fsharp-ts-mode--indent-rules (language)
+  "Return tree-sitter indentation rules for LANGUAGE.
+The return value is suitable for `treesit-simple-indent-rules'."
+  `((,language
+     ;; Comment continuation lines: align with body text.
+     ;; Must come before `no-node' because empty lines inside
+     ;; multi-line comments have node=nil, parent=block_comment.
+     ((parent-is "block_comment") prev-adaptive-prefix 0)
+
+     ;; Empty lines: use previous line's indentation, adding offset
+     ;; when the previous line ends with a body-expecting token.
+     (no-node prev-line fsharp-ts-mode--empty-line-offset)
+
+     ;; Top-level definitions: column 0
+     ((parent-is "file") column-0 0)
+     ((parent-is "named_module") column-0 0)
+
+     ;; Namespace body does NOT indent (F# convention)
+     ((parent-is "namespace") column-0 0)
+
+     ;; Closing delimiters align with the opening construct
+     ((node-is ")") parent-bol 0)
+     ((node-is "]") parent-bol 0)
+     ((node-is "}") parent-bol 0)
+     ((node-is "|]") parent-bol 0)
+     ((node-is "|}") parent-bol 0)
+     ((node-is ">]") parent-bol 0)
+     ((node-is "end") parent-bol 0)
+     ((node-is "done") parent-bol 0)
+
+     ;; elif aligns with if
+     ((node-is "elif_expression") parent-bol 0)
+     ;; else aligns with if
+     ((match "else" "if_expression") parent-bol 0)
+
+     ;; with in match/try aligns with the keyword
+     ((match "with" "match_expression") parent-bol 0)
+     ((match "with" "try_expression") parent-bol 0)
+
+     ;; | in match rules aligns with the match keyword
+     ((node-is "rule") parent-bol 0)
+     ((match "^[|]$" "rules") parent-bol 0)
+
+     ;; Match rule body (after ->) is indented from |
+     ((parent-is "rule") parent-bol fsharp-ts-indent-offset)
+
+     ;; then/else/elif bodies are indented
+     ((parent-is "if_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "elif_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Module body is indented
+     ((parent-is "module_defn") parent-bol fsharp-ts-indent-offset)
+
+     ;; Function/value binding body
+     ((parent-is "function_or_value_defn") parent-bol fsharp-ts-indent-offset)
+
+     ;; Type definitions
+     ((parent-is "type_definition") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "union_type_defn") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "union_type_cases") parent-bol 0)
+     ((parent-is "record_type_defn") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "record_fields") parent-bol 0)
+     ((parent-is "enum_type_defn") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "interface_type_defn") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "class_type_defn") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "type_abbrev_defn") parent-bol fsharp-ts-indent-offset)
+
+     ;; Member definitions
+     ((parent-is "member_defn") parent-bol fsharp-ts-indent-offset)
+
+     ;; Compound expressions
+     ((parent-is "paren_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "list_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "array_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "brace_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "anon_record_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Application expressions (multi-line function calls)
+     ((parent-is "application_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Sequential expressions (expr1; expr2) — keep aligned
+     ((parent-is "sequential_expression") parent-bol 0)
+     ;; declaration_expression children stay aligned
+     ((parent-is "declaration_expression") parent-bol 0)
+
+     ;; try/with/finally
+     ((parent-is "try_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; for/while loops
+     ((parent-is "for_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "while_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; fun/function expressions
+     ((parent-is "fun_expression") parent-bol fsharp-ts-indent-offset)
+     ((parent-is "function_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Computation expressions
+     ((parent-is "ce_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Object expressions
+     ((parent-is "object_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; match_expression body
+     ((parent-is "match_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Infix expressions (including pipes) -- keep aligned
+     ((parent-is "infix_expression") parent-bol 0)
+
+     ;; Error recovery
+     ((parent-is "ERROR") parent-bol fsharp-ts-indent-offset)
+
+     ;; Strings: preserve previous indentation
+     ((node-is "string") prev-line 0)
+     ((node-is "triple_quoted_string") prev-line 0)
+     ((node-is "verbatim_string") prev-line 0))))
+
 ;;;; Mode setup
 
 (defun fsharp-ts--setup-mode (language)
@@ -354,6 +495,10 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
     ;; Font-lock
     (setq-local treesit-font-lock-settings
                 (fsharp-ts-mode--font-lock-settings language))
+
+    ;; Indentation
+    (setq-local treesit-simple-indent-rules
+                (fsharp-ts-mode--indent-rules language))
 
     (treesit-major-mode-setup)))
 

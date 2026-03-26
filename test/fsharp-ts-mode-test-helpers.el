@@ -161,11 +161,13 @@ or (START END FACE) for position-based matching."
    "\n"))
 
 (defmacro when-indenting--it (mode description &rest code-strings)
-  "Create a Buttercup test that asserts each CODE-STRING indents correctly.
+  "Create a Buttercup test that asserts indentation is preserved.
 MODE is the major mode function to use.  DESCRIPTION is the test name.
 Each element of CODE-STRINGS is a properly-indented F# code string.
-The macro strips indentation, re-indents via MODE, and asserts the
-result matches the original."
+
+Since F# is an indentation-sensitive language, the tree-sitter parser
+needs correct indentation to parse correctly.  We test that
+`indent-region' preserves already-correct indentation (round-trip)."
   (declare (indent 2))
   `(it ,description
      ,@(mapcar
@@ -173,7 +175,7 @@ result matches the original."
           `(let ((expected ,code))
              (expect
               (with-temp-buffer
-                (insert (fsharp-ts-mode-test--strip-indentation expected))
+                (insert expected)
                 (funcall #',mode)
                 (indent-region (point-min) (point-max))
                 (buffer-string))
