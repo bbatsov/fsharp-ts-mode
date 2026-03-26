@@ -1,9 +1,9 @@
 /// Sample F# script for integration testing.
-module Script
 
 open System
 
 let greeting = "Hello from F# script!"
+printfn "%s" greeting
 
 let square x = x * x
 
@@ -25,3 +25,4 @@ let work =
     }
 
 let result = 42
+printfn "Result: %d" result

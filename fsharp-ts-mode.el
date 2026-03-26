@@ -370,6 +370,24 @@ level, not the body's."
   (and (string= (treesit-node-type node) "line_comment")
        (null (treesit-node-next-sibling node t))))
 
+(defun fsharp-ts-mode--script-top-level-p (_node parent &rest _)
+  "Return non-nil if PARENT is part of a top-level expression chain.
+In script files without a module declaration, bare expressions like
+`printfn` cause the grammar to chain subsequent declarations under
+nested `application_expression' nodes.  Walk up through the chain
+to check if it ultimately lives under `file'."
+  (let ((ptype (treesit-node-type parent)))
+    (and (member ptype '("application_expression" "ERROR"))
+         (let ((ancestor parent))
+           (while (and ancestor
+                       (member (treesit-node-type ancestor)
+                               '("application_expression"
+                                 "declaration_expression"
+                                 "ERROR")))
+             (setq ancestor (treesit-node-parent ancestor)))
+           (and ancestor
+                (string= (treesit-node-type ancestor) "file"))))))
+
 (defun fsharp-ts-mode--indent-rules (language)
   "Return tree-sitter indentation rules for LANGUAGE.
 The return value is suitable for `treesit-simple-indent-rules'."
@@ -451,6 +469,10 @@ The return value is suitable for `treesit-simple-indent-rules'."
      ((parent-is "array_expression") parent-bol fsharp-ts-indent-offset)
      ((parent-is "brace_expression") parent-bol fsharp-ts-indent-offset)
      ((parent-is "anon_record_expression") parent-bol fsharp-ts-indent-offset)
+
+     ;; Script top-level: declarations misparented under application_expression
+     ;; due to bare expressions in .fsx files should stay at column 0.
+     (fsharp-ts-mode--script-top-level-p column-0 0)
 
      ;; Application expressions (multi-line function calls)
      ((parent-is "application_expression") parent-bol fsharp-ts-indent-offset)
@@ -673,7 +695,18 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
   (when (treesit-ready-p language)
     (let ((parser (treesit-parser-create language)))
       (when (boundp 'treesit-primary-parser)
-        (setq-local treesit-primary-parser parser)))
+        (setq-local treesit-primary-parser parser))
+
+      ;; Skip shebang line in .fsx scripts so the parser doesn't choke
+      (when (save-excursion
+              (goto-char (point-min))
+              (looking-at "#!"))
+        (let ((shebang-end (save-excursion
+                             (goto-char (point-min))
+                             (forward-line 1)
+                             (point))))
+          (treesit-parser-set-included-ranges
+           parser (list (cons shebang-end (point-max)))))))
 
     (when fsharp-ts--debug
       (setq-local treesit--indent-verbose t)

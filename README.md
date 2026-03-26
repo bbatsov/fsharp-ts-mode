@@ -84,9 +84,10 @@ correct whitespace to parse the code. This has a few practical consequences:
   stripped, `indent-region` won't fix it because the parser can't make sense of
   the flat structure. Paste code with its indentation intact, or re-indent it
   manually.
-- **Script files (.fsx)**: Top-level expressions in scripts without an explicit
-  `module` declaration may not indent correctly due to how the grammar parses
-  them. Adding `module ScriptName` at the top helps.
+- **Script files (.fsx)**: Shebang lines (`#!/usr/bin/env dotnet fsi`) are
+  handled automatically. Mixing `let` bindings with bare expressions works,
+  though the grammar may occasionally produce unexpected results in complex
+  scripts.
 - **Incremental editing works well**: When you're writing code line by line, the
   parser has enough context from preceding lines to indent correctly.
 

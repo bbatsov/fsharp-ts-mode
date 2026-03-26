@@ -71,10 +71,20 @@ next named sibling -- and align them with the parent definition instead.
 
 ### Script files (.fsx)
 
-Script files without an explicit `module` declaration parse top-level
-expressions as nested `application_expression` chains, which causes progressive
-indentation. Files with a `module` or `namespace` declaration at the top parse
-correctly. This is a grammar limitation.
+Script files without an explicit `module` declaration can mix `let` bindings
+with bare expressions like `printfn`. The grammar parses bare expressions as
+`application_expression` nodes and chains subsequent declarations under them,
+creating deeply nested trees. We detect this pattern -- declarations whose
+ancestor chain of `application_expression` / `declaration_expression` / `ERROR`
+nodes ultimately lives under `file` -- and force them to column 0.
+
+### Shebang lines
+
+The F# grammar doesn't recognize shebang lines (`#!/usr/bin/env dotnet fsi`).
+We handle this by detecting the `#!` prefix and setting
+`treesit-parser-set-included-ranges` to exclude the first line from parsing.
+The parser then sees the file starting from line 2, and everything works
+correctly.
 
 ### The no-node problem
 
