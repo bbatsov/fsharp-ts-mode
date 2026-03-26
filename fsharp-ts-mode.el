@@ -555,6 +555,68 @@ Joins ancestor names with `.' as delimiter."
     ("Module" "\\`module_defn\\'" nil nil))
   "Imenu settings for `fsharp-ts-mode'.")
 
+;;;; Structured navigation (forward-sexp)
+
+(defvar fsharp-ts-mode--block-regex
+  (regexp-opt '("if_expression" "elif_expression"
+                "match_expression" "fun_expression" "function_expression"
+                "try_expression" "for_expression" "while_expression"
+                "paren_expression" "list_expression" "array_expression"
+                "brace_expression" "anon_record_expression"
+                "ce_expression" "object_expression"
+                "application_expression" "infix_expression"
+                "function_or_value_defn" "type_definition"
+                "module_defn" "member_defn"
+                "exception_definition")
+              'symbols)
+  "Regexp matching node types suitable for sexp-like navigation.")
+
+(defun fsharp-ts-mode-forward-sexp (&optional arg)
+  "Move forward across one balanced expression (sexp).
+With ARG, do it that many times.  Negative arg means move backward."
+  (interactive "^p")
+  (or arg (setq arg 1))
+  (funcall
+   (if (> arg 0) #'treesit-end-of-thing #'treesit-beginning-of-thing)
+   fsharp-ts-mode--block-regex (abs arg)))
+
+(defun fsharp-ts-mode--delimiter-p ()
+  "Return non-nil if point is on a delimiter character."
+  (let ((c (char-after)))
+    (and c (memq c '(?\( ?\) ?\[ ?\] ?\{ ?\})))))
+
+(defun fsharp-ts-mode--forward-sexp-hybrid (arg)
+  "Sexp movement that delegates to syntax-table on delimiters.
+Falls back to tree-sitter for everything else.  ARG is the number
+of sexps to move."
+  (if (fsharp-ts-mode--delimiter-p)
+      (let ((forward-sexp-function nil))
+        (forward-sexp arg))
+    (fsharp-ts-mode-forward-sexp arg)))
+
+;;;; Thing settings (Emacs 30+)
+
+(defun fsharp-ts-mode--thing-settings (language)
+  "Return `treesit-thing-settings' for LANGUAGE."
+  `((,language
+     (sexp (not ,(rx (or "(" ")" "[" "]" "{" "}"
+                         "[|" "|]" "[<" ">]"
+                         "," ";" ":" "." "->" "<-" "=" "|"))))
+     (list ,(regexp-opt '("paren_expression" "list_expression"
+                          "array_expression" "brace_expression"
+                          "anon_record_expression" "object_expression")
+                        'symbols))
+     (sentence ,(regexp-opt '("function_or_value_defn" "type_definition"
+                              "exception_definition" "module_defn"
+                              "import_decl" "member_defn")
+                            'symbols))
+     (text ,(regexp-opt '("line_comment" "block_comment"
+                          "string" "triple_quoted_string"
+                          "verbatim_string" "char")
+                        'symbols))
+     (comment ,(regexp-opt '("line_comment" "block_comment")
+                           'symbols)))))
+
 ;;;; Mode setup
 
 (defun fsharp-ts--setup-mode (language)
@@ -588,7 +650,29 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
     ;; Imenu
     (setq-local treesit-simple-imenu-settings fsharp-ts-mode--imenu-settings)
 
+    ;; Structured navigation
+    (setq-local forward-sexp-function #'fsharp-ts-mode--forward-sexp-hybrid)
+
+    ;; Thing-based navigation (Emacs 30+)
+    (when (boundp 'treesit-thing-settings)
+      (setq-local treesit-thing-settings
+                  (fsharp-ts-mode--thing-settings language)))
+
     (treesit-major-mode-setup)))
+
+(defvar fsharp-ts-base-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-a") #'ff-find-other-file)
+    (define-key map (kbd "C-c C-c") #'compile)
+    (easy-menu-define fsharp-ts-mode-menu map "F# Mode Menu"
+      '("F#"
+        ["Compile" compile t]
+        ["Switch to .fs/.fsi" ff-find-other-file t]
+        "---"
+        ["Install Grammars" fsharp-ts-mode-install-grammars t]
+        ["Show Version" fsharp-ts-mode-version t]))
+    map)
+  "Keymap for `fsharp-ts-base-mode'.")
 
 (define-derived-mode fsharp-ts-base-mode prog-mode "F#"
   "Base major mode for F# files, providing shared setup.
