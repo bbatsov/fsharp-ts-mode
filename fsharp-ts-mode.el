@@ -725,8 +725,7 @@ Scans the buffer for the most common indentation step and sets
 `fsharp-ts-indent-offset' accordingly."
   (interactive)
   (let ((counts (make-hash-table))
-        (best-offset fsharp-ts-indent-offset)
-        (best-count 0))
+        (best-offset fsharp-ts-indent-offset))
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
@@ -734,17 +733,17 @@ Scans the buffer for the most common indentation step and sets
           (when (> indent 0)
             (puthash indent (1+ (gethash indent counts 0)) counts)))
         (forward-line 1)))
-    ;; Find the most common non-zero indentation that could be a step.
-    ;; Check common offsets: 2, 3, 4, 8
-    (dolist (candidate '(2 3 4 8))
-      (let ((count 0))
-        (maphash (lambda (indent _)
-                   (when (zerop (% indent candidate))
-                     (setq count (+ count (gethash indent counts 0)))))
-                 counts)
-        (when (> count best-count)
-          (setq best-count count
-                best-offset candidate))))
+    ;; Find the best indentation step.  We look at the smallest actual
+    ;; indentation value, since in well-indented code the first indent
+    ;; level reveals the offset directly (e.g., 4 means offset 4,
+    ;; not 2).  Fall back to checking common candidates if needed.
+    (let ((min-indent nil))
+      (maphash (lambda (indent _)
+                 (when (or (null min-indent) (< indent min-indent))
+                   (setq min-indent indent)))
+               counts)
+      (when (and min-indent (member min-indent '(2 3 4 8)))
+        (setq best-offset min-indent)))
     (setq-local fsharp-ts-indent-offset best-offset)
     (when (called-interactively-p 'interactive)
       (message "Guessed indent offset: %d" best-offset))))
