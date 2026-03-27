@@ -45,16 +45,26 @@ the `fsharp-signature` grammar (for `.fsi` files) from [ionide/tree-sitter-fshar
 - Indentation via tree-sitter
 - Imenu support with fully-qualified names
 - Navigation (`beginning-of-defun`, `end-of-defun`, `forward-sexp`)
+- F# Interactive (REPL) with tree-sitter highlighting for input
+- .NET API documentation lookup at point
 - Compilation error parsing for `dotnet build` output
 - Prettify symbols (`->` to `→`, `fun` to `λ`, etc.)
 - Eglot integration for the [F# Language Server](https://github.com/fsharp/FsAutoComplete)
 - Switch between `.fs` and `.fsi` files with `C-c C-a`
+- Shift region left/right for quick re-indentation
+- Auto-detect indentation offset from file contents
+- Build directory awareness (prompts to switch from `bin/`/`obj/` to source)
+- Outline mode integration (Emacs 30+)
+- Bug report helpers
 
 ## Configuration
 
 ```emacs-lisp
 ;; Change indentation offset (default: 4)
 (setq fsharp-ts-indent-offset 2)
+
+;; Auto-guess the indent offset from file contents (default: nil)
+(setq fsharp-ts-guess-indent-offset t)
 
 ;; Enable prettify-symbols-mode
 (add-hook 'fsharp-ts-mode-hook #'prettify-symbols-mode)
@@ -139,6 +149,67 @@ Then enable Eglot:
 (add-hook 'fsharp-ts-mode-hook #'eglot-ensure)
 ```
 
+### F# Interactive (REPL)
+
+`fsharp-ts-repl.el` provides integration with `dotnet fsi`. The REPL buffer
+gets tree-sitter syntax highlighting for input (via `comint-fontify-input-mode`)
+and regex-based highlighting for output.
+
+```emacs-lisp
+;; Enable the REPL minor mode in F# buffers
+(add-hook 'fsharp-ts-mode-hook #'fsharp-ts-repl-minor-mode)
+```
+
+From a source buffer with `fsharp-ts-repl-minor-mode` active:
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `C-c C-z` | `fsharp-ts-repl-switch-to-repl` | Start or switch to the REPL |
+| `C-c C-c` | `fsharp-ts-repl-send-definition` | Send definition at point |
+| `C-c C-r` | `fsharp-ts-repl-send-region` | Send region |
+| `C-c C-b` | `fsharp-ts-repl-send-buffer` | Send entire buffer |
+| `C-c C-l` | `fsharp-ts-repl-load-file` | Load file via `#load` directive |
+| `C-c C-i` | `fsharp-ts-repl-interrupt` | Interrupt the REPL process |
+| `C-c C-k` | `fsharp-ts-repl-clear-buffer` | Clear the REPL buffer |
+
+The `;;` expression terminator is appended automatically when missing. Input
+history is persisted across sessions.
+
+```emacs-lisp
+;; Customize the REPL command (default: "dotnet" with args "fsi" "--readline-")
+(setq fsharp-ts-repl-program-name "/path/to/fsi")
+(setq fsharp-ts-repl-program-args '("--readline-"))
+```
+
+### Indentation Helpers
+
+F# is indentation-sensitive, so shifting blocks of code is a common operation.
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `C-c >` | `fsharp-ts-mode-shift-region-right` | Indent region by one level |
+| `C-c <` | `fsharp-ts-mode-shift-region-left` | Dedent region by one level |
+
+Both commands accept a prefix argument to shift by multiple levels (e.g.,
+`C-u 2 C-c >` shifts right by 2 levels).
+
+`M-x fsharp-ts-mode-guess-indent-offset` scans the buffer and sets
+`fsharp-ts-indent-offset` to match the file's convention. Set
+`fsharp-ts-guess-indent-offset` to `t` to run this automatically on file open.
+
+### Documentation Lookup
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `C-c C-d` | `fsharp-ts-mode-doc-at-point` | Look up symbol at point in .NET API docs |
+
+This opens the [Microsoft .NET API reference](https://learn.microsoft.com/en-us/dotnet/api/)
+with a search for the identifier at point. Works for any .NET type or function,
+not just FSharp.Core.
+
+`M-x fsharp-ts-mode-browse-fsharp-docs` opens the [F# documentation](https://fsharp.org/docs/)
+home page.
+
 ## Known Limitations
 
 F# is an indentation-sensitive language -- the tree-sitter grammar needs
@@ -160,10 +231,27 @@ and the overall architecture.
 
 ## Keybindings
 
-| Key       | Command              | Description                    |
-|-----------|----------------------|--------------------------------|
+Base mode (always active in F# buffers):
+
+| Key | Command | Description |
+|-----|---------|-------------|
 | `C-c C-a` | `ff-find-other-file` | Switch between `.fs` and `.fsi` |
-| `C-c C-c` | `compile`            | Run compilation                |
+| `C-c C-c` | `compile` | Run compilation |
+| `C-c C-d` | `fsharp-ts-mode-doc-at-point` | Look up symbol in .NET docs |
+| `C-c >` | `fsharp-ts-mode-shift-region-right` | Indent region |
+| `C-c <` | `fsharp-ts-mode-shift-region-left` | Dedent region |
+
+REPL minor mode (when `fsharp-ts-repl-minor-mode` is active):
+
+| Key | Command | Description |
+|-----|---------|-------------|
+| `C-c C-z` | `fsharp-ts-repl-switch-to-repl` | Start or switch to REPL |
+| `C-c C-c` | `fsharp-ts-repl-send-definition` | Send definition at point |
+| `C-c C-r` | `fsharp-ts-repl-send-region` | Send region |
+| `C-c C-b` | `fsharp-ts-repl-send-buffer` | Send buffer |
+| `C-c C-l` | `fsharp-ts-repl-load-file` | Load file (`#load`) |
+| `C-c C-i` | `fsharp-ts-repl-interrupt` | Interrupt REPL |
+| `C-c C-k` | `fsharp-ts-repl-clear-buffer` | Clear REPL buffer |
 
 ## Migrating from fsharp-mode
 
@@ -180,7 +268,7 @@ based on `auto-mode-alist` ordering.
 | Syntax highlighting | Regex-based (`font-lock-keywords`) | Tree-sitter queries (structural, 4 levels) |
 | Indentation | SMIE + custom heuristics | Tree-sitter indent rules |
 | Min Emacs version | 25 | 29.1 (tree-sitter support) |
-| REPL (F# Interactive) | Built-in (`inf-fsharp-mode`) | Not included (yet) |
+| REPL (F# Interactive) | Built-in (`inf-fsharp-mode`) | Built-in (`fsharp-ts-repl`) with tree-sitter input highlighting |
 | Eglot/LSP | Via separate `eglot-fsharp` package | Built-in (just `eglot-ensure`) |
 | Compilation | `fsc`/`msbuild` patterns | `dotnet build` patterns |
 | Imenu | Basic | Fully-qualified names (e.g., `Module.func`) |
@@ -189,12 +277,6 @@ based on `auto-mode-alist` ordering.
 
 ### What fsharp-ts-mode doesn't have (yet)
 
-- **F# Interactive (REPL)** -- `fsharp-mode` bundles `inf-fsharp-mode` for
-  `comint`-based REPL interaction. `fsharp-ts-mode` doesn't include REPL support
-  yet. If you need eval-region / eval-buffer, keep `inf-fsharp-mode` around or
-  use a general-purpose solution like
-  [comint](https://www.gnu.org/software/emacs/manual/html_node/emacs/Shell.html)
-  with `dotnet fsi`.
 - **Automatic LSP server installation** -- `eglot-fsharp` auto-downloads
   FsAutoComplete. With `fsharp-ts-mode` you install it yourself
   (`dotnet tool install -g fsautocomplete`), then Eglot picks it up
