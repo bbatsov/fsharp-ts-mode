@@ -91,10 +91,21 @@ disable them selectively:
           (lambda () (treesit-font-lock-recompute-features nil '(operator))))
 ```
 
-The available feature names are: `comment`, `definition`, `keyword`,
-`string`, `type`, `attribute`, `builtin`, `constant`, `escape-sequence`,
-`number`, `operator`, `bracket`, `delimiter`, `variable`, `property`,
-`function`.
+The available feature names for `.fs`/`.fsx` files are: `comment`,
+`definition`, `keyword`, `string`, `type`, `attribute`, `builtin`,
+`constant`, `escape-sequence`, `number`, `operator`, `bracket`,
+`delimiter`, `variable`, `property`, `function`.
+
+**Note:** Signature files (`.fsi`) use a separate tree-sitter grammar with
+a reduced set of font-lock rules. Only `comment`, `definition`, `keyword`,
+`string`, `type`, `bracket`, `delimiter`, and `variable` are available for
+`.fsi` buffers. Face customizations via hooks need to target both modes if
+you want them to apply everywhere:
+
+```emacs-lisp
+(dolist (hook '(fsharp-ts-mode-hook fsharp-ts-signature-mode-hook))
+  (add-hook hook #'my-fsharp-faces))
+```
 
 ### Face Customization
 
