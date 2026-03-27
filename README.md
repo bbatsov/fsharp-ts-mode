@@ -60,6 +60,59 @@ the `fsharp-signature` grammar (for `.fsi` files) from [ionide/tree-sitter-fshar
 (add-hook 'fsharp-ts-mode-hook #'prettify-symbols-mode)
 ```
 
+### Syntax Highlighting
+
+Syntax highlighting is organized into 4 levels, controlled by
+`treesit-font-lock-level` (default: 3):
+
+| Level | Features |
+|-------|----------|
+| 1 | Comments, definitions (function/value/type/member names) |
+| 2 | Keywords, strings, type annotations, DU constructors |
+| 3 | Attributes, builtins, constants (`true`/`false`), numbers, escape sequences |
+| 4 | Operators, brackets, delimiters, all variables, properties, function calls |
+
+```emacs-lisp
+;; Maximum highlighting (includes operators, all variables, function calls)
+(setq treesit-font-lock-level 4)
+```
+
+You can also toggle individual font-lock features without changing the
+level. Each level is a group of named features -- you can enable or
+disable them selectively:
+
+```emacs-lisp
+;; Enable function call highlighting (level 4) while keeping level 3 default
+(add-hook 'fsharp-ts-mode-hook
+          (lambda () (treesit-font-lock-recompute-features '(function) nil)))
+
+;; Disable operator highlighting
+(add-hook 'fsharp-ts-mode-hook
+          (lambda () (treesit-font-lock-recompute-features nil '(operator))))
+```
+
+The available feature names are: `comment`, `definition`, `keyword`,
+`string`, `type`, `attribute`, `builtin`, `constant`, `escape-sequence`,
+`number`, `operator`, `bracket`, `delimiter`, `variable`, `property`,
+`function`.
+
+### Face Customization
+
+Tree-sitter modes use the standard `font-lock-*-face` faces. You can
+customize them globally or locally for F# buffers:
+
+```emacs-lisp
+;; Globally change how function names look
+(set-face-attribute 'font-lock-function-name-face nil :weight 'bold)
+
+;; Override faces only in fsharp-ts-mode buffers
+(defun my-fsharp-faces ()
+  (face-remap-add-relative 'font-lock-keyword-face :foreground "#ff6600")
+  (face-remap-add-relative 'font-lock-type-face :foreground "#2aa198"))
+
+(add-hook 'fsharp-ts-mode-hook #'my-fsharp-faces)
+```
+
 ### Eglot
 
 `fsharp-ts-mode` works with Eglot out of the box if you have
