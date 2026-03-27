@@ -165,6 +165,57 @@ and the overall architecture.
 | `C-c C-a` | `ff-find-other-file` | Switch between `.fs` and `.fsi` |
 | `C-c C-c` | `compile`            | Run compilation                |
 
+## Migrating from fsharp-mode
+
+[fsharp-mode](https://github.com/fsharp/emacs-fsharp-mode) is the long-standing
+Emacs package for F# editing, maintained by the F# Software Foundation.
+`fsharp-ts-mode` is a new, independent package built from scratch on top of
+tree-sitter. The two can coexist -- only one will be active for a given buffer
+based on `auto-mode-alist` ordering.
+
+### What's different
+
+| | fsharp-mode | fsharp-ts-mode |
+|---|---|---|
+| Syntax highlighting | Regex-based (`font-lock-keywords`) | Tree-sitter queries (structural, 4 levels) |
+| Indentation | SMIE + custom heuristics | Tree-sitter indent rules |
+| Min Emacs version | 25 | 29.1 (tree-sitter support) |
+| REPL (F# Interactive) | Built-in (`inf-fsharp-mode`) | Not included (yet) |
+| Eglot/LSP | Via separate `eglot-fsharp` package | Built-in (just `eglot-ensure`) |
+| Compilation | `fsc`/`msbuild` patterns | `dotnet build` patterns |
+| Imenu | Basic | Fully-qualified names (e.g., `Module.func`) |
+| forward-sexp | Syntax-table | Tree-sitter + syntax-table hybrid |
+| .fsi support | Same mode | Separate `fsharp-ts-signature-mode` |
+
+### What fsharp-ts-mode doesn't have (yet)
+
+- **F# Interactive (REPL)** -- `fsharp-mode` bundles `inf-fsharp-mode` for
+  `comint`-based REPL interaction. `fsharp-ts-mode` doesn't include REPL support
+  yet. If you need eval-region / eval-buffer, keep `inf-fsharp-mode` around or
+  use a general-purpose solution like
+  [comint](https://www.gnu.org/software/emacs/manual/html_node/emacs/Shell.html)
+  with `dotnet fsi`.
+- **Automatic LSP server installation** -- `eglot-fsharp` auto-downloads
+  FsAutoComplete. With `fsharp-ts-mode` you install it yourself
+  (`dotnet tool install -g fsautocomplete`), then Eglot picks it up
+  automatically.
+
+### Switching over
+
+If you want `fsharp-ts-mode` to take priority, just make sure it's loaded after
+`fsharp-mode` (or don't load `fsharp-mode` at all). `fsharp-ts-mode` registers
+itself for `.fs`, `.fsx`, and `.fsi` files via `auto-mode-alist`, and the last
+registration wins.
+
+```emacs-lisp
+;; If you previously had:
+(use-package fsharp-mode)
+
+;; Replace with:
+(use-package fsharp-ts-mode
+  :vc (:url "https://github.com/bbatsov/fsharp-ts-mode" :rev :newest))
+```
+
 ## Background
 
 This package was inspired by [neocaml](https://github.com/bbatsov/neocaml), my
