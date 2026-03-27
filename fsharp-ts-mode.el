@@ -62,6 +62,13 @@ See `ff-other-file-alist' and `ff-find-other-file'."
   :type '(repeat (list regexp (choice (repeat string) function)))
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
+(defcustom fsharp-ts-guess-indent-offset nil
+  "When non-nil, automatically guess the indentation offset on file open.
+Uses `fsharp-ts-mode-guess-indent-offset' to scan the buffer and set
+`fsharp-ts-indent-offset' to match the file's convention."
+  :type 'boolean
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
 (defvar fsharp-ts--debug nil
   "Enable debugging messages and show the current node in the mode-line.
 When set to t, show indentation debug info.
@@ -739,7 +746,8 @@ Scans the buffer for the most common indentation step and sets
           (setq best-count count
                 best-offset candidate))))
     (setq-local fsharp-ts-indent-offset best-offset)
-    (message "Guessed indent offset: %d" best-offset)))
+    (when (called-interactively-p 'interactive)
+      (message "Guessed indent offset: %d" best-offset))))
 
 ;;;; Utility commands
 
@@ -958,7 +966,13 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
                       #'fsharp-ts-mode--defun-valid-p)))
 
   ;; Prettify symbols
-  (setq-local prettify-symbols-alist fsharp-ts-mode-prettify-symbols-alist))
+  (setq-local prettify-symbols-alist fsharp-ts-mode-prettify-symbols-alist)
+
+  ;; Auto-guess indentation offset from file contents
+  (when (and fsharp-ts-guess-indent-offset
+             buffer-file-name
+             (> (buffer-size) 0))
+    (fsharp-ts-mode-guess-indent-offset)))
 
 ;;;###autoload
 (define-derived-mode fsharp-ts-mode fsharp-ts-base-mode "F#"
