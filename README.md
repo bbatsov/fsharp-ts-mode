@@ -75,12 +75,12 @@ the `fsharp-signature` grammar (for `.fsi` files) from [ionide/tree-sitter-fshar
 Syntax highlighting is organized into 4 levels, controlled by
 `treesit-font-lock-level` (default: 3):
 
-| Level | Features |
-|-------|----------|
-| 1 | Comments, definitions (function/value/type/member names) |
-| 2 | Keywords, strings, type annotations, DU constructors |
-| 3 | Attributes, builtins, constants (`true`/`false`), numbers, escape sequences |
-| 4 | Operators, brackets, delimiters, all variables, properties, function calls |
+| Level | Features                                                                    |
+|-------|-----------------------------------------------------------------------------|
+| 1     | Comments, definitions (function/value/type/member names)                    |
+| 2     | Keywords, strings, type annotations, DU constructors                       |
+| 3     | Attributes, builtins, constants (`true`/`false`), numbers, escape sequences|
+| 4     | Operators, brackets, delimiters, all variables, properties, function calls |
 
 ```emacs-lisp
 ;; Maximum highlighting (includes operators, all variables, function calls)
@@ -162,15 +162,15 @@ and regex-based highlighting for output.
 
 From a source buffer with `fsharp-ts-repl-minor-mode` active:
 
-| Key | Command | Description |
-|-----|---------|-------------|
-| `C-c C-z` | `fsharp-ts-repl-switch-to-repl` | Start or switch to the REPL |
-| `C-c C-c` | `fsharp-ts-repl-send-definition` | Send definition at point |
-| `C-c C-r` | `fsharp-ts-repl-send-region` | Send region |
-| `C-c C-b` | `fsharp-ts-repl-send-buffer` | Send entire buffer |
-| `C-c C-l` | `fsharp-ts-repl-load-file` | Load file via `#load` directive |
-| `C-c C-i` | `fsharp-ts-repl-interrupt` | Interrupt the REPL process |
-| `C-c C-k` | `fsharp-ts-repl-clear-buffer` | Clear the REPL buffer |
+| Key       | Command                         | Description                    |
+|-----------|---------------------------------|--------------------------------|
+| `C-c C-z` | `fsharp-ts-repl-switch-to-repl` | Start or switch to the REPL    |
+| `C-c C-c` | `fsharp-ts-repl-send-definition`| Send definition at point       |
+| `C-c C-r` | `fsharp-ts-repl-send-region`    | Send region                    |
+| `C-c C-b` | `fsharp-ts-repl-send-buffer`    | Send entire buffer             |
+| `C-c C-l` | `fsharp-ts-repl-load-file`      | Load file via `#load` directive|
+| `C-c C-i` | `fsharp-ts-repl-interrupt`      | Interrupt the REPL process     |
+| `C-c C-k` | `fsharp-ts-repl-clear-buffer`   | Clear the REPL buffer          |
 
 The `;;` expression terminator is appended automatically when missing. Input
 history is persisted across sessions.
@@ -185,10 +185,10 @@ history is persisted across sessions.
 
 F# is indentation-sensitive, so shifting blocks of code is a common operation.
 
-| Key | Command | Description |
-|-----|---------|-------------|
-| `C-c >` | `fsharp-ts-mode-shift-region-right` | Indent region by one level |
-| `C-c <` | `fsharp-ts-mode-shift-region-left` | Dedent region by one level |
+| Key       | Command                             | Description              |
+|-----------|-------------------------------------|--------------------------|
+| `C-c >`   | `fsharp-ts-mode-shift-region-right` | Indent region by one level |
+| `C-c <`   | `fsharp-ts-mode-shift-region-left`  | Dedent region by one level |
 
 Both commands accept a prefix argument to shift by multiple levels (e.g.,
 `C-u 2 C-c >` shifts right by 2 levels).
@@ -199,8 +199,8 @@ Both commands accept a prefix argument to shift by multiple levels (e.g.,
 
 ### Documentation Lookup
 
-| Key | Command | Description |
-|-----|---------|-------------|
+| Key       | Command                       | Description                              |
+|-----------|-------------------------------|------------------------------------------|
 | `C-c C-d` | `fsharp-ts-mode-doc-at-point` | Look up symbol at point in .NET API docs |
 
 This opens the [Microsoft .NET API reference](https://learn.microsoft.com/en-us/dotnet/api/)
@@ -233,25 +233,25 @@ and the overall architecture.
 
 Base mode (always active in F# buffers):
 
-| Key | Command | Description |
-|-----|---------|-------------|
-| `C-c C-a` | `ff-find-other-file` | Switch between `.fs` and `.fsi` |
-| `C-c C-c` | `compile` | Run compilation |
-| `C-c C-d` | `fsharp-ts-mode-doc-at-point` | Look up symbol in .NET docs |
-| `C-c >` | `fsharp-ts-mode-shift-region-right` | Indent region |
-| `C-c <` | `fsharp-ts-mode-shift-region-left` | Dedent region |
+| Key       | Command                             | Description                     |
+|-----------|-------------------------------------|---------------------------------|
+| `C-c C-a` | `ff-find-other-file`                | Switch between `.fs` and `.fsi` |
+| `C-c C-c` | `compile`                           | Run compilation                 |
+| `C-c C-d` | `fsharp-ts-mode-doc-at-point`       | Look up symbol in .NET docs     |
+| `C-c >`   | `fsharp-ts-mode-shift-region-right` | Indent region                   |
+| `C-c <`   | `fsharp-ts-mode-shift-region-left`  | Dedent region                   |
 
 REPL minor mode (when `fsharp-ts-repl-minor-mode` is active):
 
-| Key | Command | Description |
-|-----|---------|-------------|
-| `C-c C-z` | `fsharp-ts-repl-switch-to-repl` | Start or switch to REPL |
+| Key       | Command                          | Description              |
+|-----------|----------------------------------|--------------------------|
+| `C-c C-z` | `fsharp-ts-repl-switch-to-repl`  | Start or switch to REPL  |
 | `C-c C-c` | `fsharp-ts-repl-send-definition` | Send definition at point |
-| `C-c C-r` | `fsharp-ts-repl-send-region` | Send region |
-| `C-c C-b` | `fsharp-ts-repl-send-buffer` | Send buffer |
-| `C-c C-l` | `fsharp-ts-repl-load-file` | Load file (`#load`) |
-| `C-c C-i` | `fsharp-ts-repl-interrupt` | Interrupt REPL |
-| `C-c C-k` | `fsharp-ts-repl-clear-buffer` | Clear REPL buffer |
+| `C-c C-r` | `fsharp-ts-repl-send-region`     | Send region              |
+| `C-c C-b` | `fsharp-ts-repl-send-buffer`     | Send buffer              |
+| `C-c C-l` | `fsharp-ts-repl-load-file`       | Load file (`#load`)      |
+| `C-c C-i` | `fsharp-ts-repl-interrupt`       | Interrupt REPL           |
+| `C-c C-k` | `fsharp-ts-repl-clear-buffer`    | Clear REPL buffer        |
 
 ## Migrating from fsharp-mode
 
@@ -263,17 +263,17 @@ based on `auto-mode-alist` ordering.
 
 ### What's different
 
-| | fsharp-mode | fsharp-ts-mode |
-|---|---|---|
-| Syntax highlighting | Regex-based (`font-lock-keywords`) | Tree-sitter queries (structural, 4 levels) |
-| Indentation | SMIE + custom heuristics | Tree-sitter indent rules |
-| Min Emacs version | 25 | 29.1 (tree-sitter support) |
-| REPL (F# Interactive) | Built-in (`inf-fsharp-mode`) | Built-in (`fsharp-ts-repl`) with tree-sitter input highlighting |
-| Eglot/LSP | Via separate `eglot-fsharp` package | Built-in (just `eglot-ensure`) |
-| Compilation | `fsc`/`msbuild` patterns | `dotnet build` patterns |
-| Imenu | Basic | Fully-qualified names (e.g., `Module.func`) |
-| forward-sexp | Syntax-table | Tree-sitter + syntax-table hybrid |
-| .fsi support | Same mode | Separate `fsharp-ts-signature-mode` |
+|                     | fsharp-mode                        | fsharp-ts-mode                                                   |
+|---------------------|------------------------------------|------------------------------------------------------------------|
+| Syntax highlighting | Regex-based (`font-lock-keywords`) | Tree-sitter queries (structural, 4 levels)                       |
+| Indentation         | SMIE + custom heuristics           | Tree-sitter indent rules                                         |
+| Min Emacs version   | 25                                 | 29.1 (tree-sitter support)                                       |
+| REPL                | Built-in (`inf-fsharp-mode`)       | Built-in (`fsharp-ts-repl`) with tree-sitter input highlighting  |
+| Eglot/LSP           | Via separate `eglot-fsharp`        | Built-in (just `eglot-ensure`)                                   |
+| Compilation         | `fsc`/`msbuild` patterns           | `dotnet build` patterns                                          |
+| Imenu               | Basic                              | Fully-qualified names (e.g., `Module.func`)                      |
+| forward-sexp        | Syntax-table                       | Tree-sitter + syntax-table hybrid                                |
+| .fsi support        | Same mode                          | Separate `fsharp-ts-signature-mode`                              |
 
 ### What fsharp-ts-mode doesn't have (yet)
 
