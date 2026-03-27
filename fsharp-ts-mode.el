@@ -752,6 +752,35 @@ The information is also copied to the kill ring."
      (format "https://learn.microsoft.com/en-us/dotnet/api/?term=%s"
              (url-hexify-string symbol)))))
 
+;;;; Build directory awareness
+
+(defun fsharp-ts-mode--resolve-build-path (file)
+  "Resolve FILE out of a `bin' or `obj' build directory, if applicable.
+For paths like `/project/bin/Debug/net8.0/Foo.fs', find the source file
+at `/project/Foo.fs'.  Return nil if FILE is not under a build directory
+or the resolved source does not exist."
+  (let ((case-fold-search (eq system-type 'windows-nt)))
+    (when (string-match "/\\(bin\\|obj\\)/" file)
+      (let* ((root (substring file 0 (match-beginning 0)))
+             (basename (file-name-nondirectory file))
+             ;; Search for the source file in the project root
+             (candidate (expand-file-name basename root)))
+        (when (file-readable-p candidate)
+          candidate)))))
+
+(defun fsharp-ts-mode--check-build-dir ()
+  "If the current file is under `bin/' or `obj/', offer to switch to source.
+Intended for use in `find-file-hook'."
+  (when-let* ((file (buffer-file-name)))
+    (when (and (derived-mode-p 'fsharp-ts-base-mode)
+               (string-match-p "/\\(bin\\|obj\\)/" file))
+      (if-let* ((source (fsharp-ts-mode--resolve-build-path file)))
+          (when (y-or-n-p
+                 (format "This file is under a build directory.  Switch to %s? "
+                         source))
+            (find-alternate-file source))
+        (message "Note: this file is under a build directory (no source found)")))))
+
 ;;;; Prettify symbols
 
 (defcustom fsharp-ts-mode-prettify-symbols-alist
@@ -905,6 +934,9 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
 ;; Hide F# build artifacts from find-file completion
 (dolist (ext '(".dll" ".exe" ".pdb"))
   (add-to-list 'completion-ignored-extensions ext))
+
+;; Offer to switch away from bin/obj copies
+(add-hook 'find-file-hook #'fsharp-ts-mode--check-build-dir)
 
 ;; Eglot integration: set the language IDs that fsautocomplete expects.
 (put 'fsharp-ts-mode 'eglot-language-id "fsharp")
