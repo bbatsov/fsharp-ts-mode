@@ -1,5 +1,8 @@
 # fsharp-ts-mode
 
+[![CI](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml/badge.svg)](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml)
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red?logo=github)](https://github.com/sponsors/bbatsov)
+
 A tree-sitter-based Emacs major mode for [F#](https://fsharp.org) development.
 
 **Requires Emacs 29.1+** with tree-sitter support.
