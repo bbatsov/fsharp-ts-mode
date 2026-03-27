@@ -53,6 +53,7 @@ the `fsharp-signature` grammar (for `.fsi` files) from [ionide/tree-sitter-fshar
 - Switch between `.fs` and `.fsi` files with `C-c C-a`
 - Shift region left/right for quick re-indentation
 - Auto-detect indentation offset from file contents
+- dotnet CLI integration (build, test, run, clean, format, restore, watch mode)
 - Build directory awareness (prompts to switch from `bin/`/`obj/` to source)
 - Outline mode integration (Emacs 30+)
 - Bug report helpers
@@ -209,6 +210,35 @@ not just FSharp.Core.
 
 `M-x fsharp-ts-mode-browse-fsharp-docs` opens the [F# documentation](https://fsharp.org/docs/)
 home page.
+
+### dotnet CLI Integration
+
+`fsharp-ts-dotnet.el` provides a minor mode for running dotnet commands from
+F# buffers. All commands run in the project root (detected by walking up to the
+nearest `.sln`, `.fsproj`, or `Directory.Build.props`).
+
+```emacs-lisp
+;; Enable the dotnet minor mode in F# buffers
+(add-hook 'fsharp-ts-mode-hook #'fsharp-ts-dotnet-mode)
+```
+
+All keybindings use the `C-c C-d` prefix:
+
+| Key           | Command                              | Description             |
+|---------------|--------------------------------------|-------------------------|
+| `C-c C-d b`   | `fsharp-ts-dotnet-build`            | Build project           |
+| `C-c C-d t`   | `fsharp-ts-dotnet-test`             | Run tests               |
+| `C-c C-d r`   | `fsharp-ts-dotnet-run`              | Run project             |
+| `C-c C-d c`   | `fsharp-ts-dotnet-clean`            | Clean build output      |
+| `C-c C-d R`   | `fsharp-ts-dotnet-restore`          | Restore NuGet packages  |
+| `C-c C-d f`   | `fsharp-ts-dotnet-format`           | Format code             |
+| `C-c C-d d`   | `fsharp-ts-dotnet-command`          | Run arbitrary command   |
+| `C-c C-d p`   | `fsharp-ts-dotnet-find-project-file`| Find nearest `.fsproj`  |
+| `C-c C-d s`   | `fsharp-ts-dotnet-find-solution-file`| Find nearest `.sln`    |
+
+**Watch mode**: Use `C-u` prefix with build, test, or run to switch to
+`dotnet watch` (e.g., `C-u C-c C-d b` runs `dotnet watch build`). The watch
+process stays alive in a comint buffer and rebuilds on file changes.
 
 ## Known Limitations
 
