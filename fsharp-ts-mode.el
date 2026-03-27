@@ -696,6 +696,53 @@ of sexps to move."
                (cons 'fsharp fsharp-ts-mode--compilation-error-regexp))
   (add-to-list 'compilation-error-regexp-alist 'fsharp))
 
+;;;; Utility commands
+
+(defconst fsharp-ts-mode-report-bug-url
+  "https://github.com/bbatsov/fsharp-ts-mode/issues/new"
+  "URL for reporting fsharp-ts-mode bugs.")
+
+(defconst fsharp-ts-mode-fsharp-docs-url
+  "https://fsharp.org/docs/"
+  "URL for the official F# documentation.")
+
+(defun fsharp-ts-mode--grammar-info (language)
+  "Return a string describing the status of the LANGUAGE grammar."
+  (if (treesit-language-available-p language)
+      (let ((recipe (assq language fsharp-ts-mode-grammar-recipes)))
+        (format "%s (expected: %s)" language (or (nth 2 recipe) "unknown")))
+    (format "%s (not installed)" language)))
+
+(defun fsharp-ts-mode-bug-report-info ()
+  "Display debug information for bug reports.
+The information is also copied to the kill ring."
+  (interactive)
+  (let* ((info (format (concat "Emacs: %s\n"
+                                "System: %s\n"
+                                "fsharp-ts-mode: %s\n"
+                                "Grammars: %s, %s\n"
+                                "Eglot: %s")
+                       emacs-version
+                       system-type
+                       fsharp-ts-mode-version
+                       (fsharp-ts-mode--grammar-info 'fsharp)
+                       (fsharp-ts-mode--grammar-info 'fsharp-signature)
+                       (if (bound-and-true-p eglot--managed-mode)
+                           "active" "inactive"))))
+    (kill-new info)
+    (message "%s\n(copied to kill ring)" info)))
+
+(defun fsharp-ts-mode-report-bug ()
+  "Report a bug in your default browser."
+  (interactive)
+  (fsharp-ts-mode-bug-report-info)
+  (browse-url fsharp-ts-mode-report-bug-url))
+
+(defun fsharp-ts-mode-browse-fsharp-docs ()
+  "Browse the official F# documentation in your default browser."
+  (interactive)
+  (browse-url fsharp-ts-mode-fsharp-docs-url))
+
 ;;;; Prettify symbols
 
 (defcustom fsharp-ts-mode-prettify-symbols-alist
@@ -772,8 +819,12 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
         ["Compile" compile t]
         ["Switch to .fs/.fsi" ff-find-other-file t]
         "---"
+        ["Browse F# Docs" fsharp-ts-mode-browse-fsharp-docs t]
+        "---"
         ["Install Grammars" fsharp-ts-mode-install-grammars t]
-        ["Show Version" fsharp-ts-mode-version t]))
+        ["Show Version" fsharp-ts-mode-version t]
+        ["Bug Report Info" fsharp-ts-mode-bug-report-info t]
+        ["Report a Bug" fsharp-ts-mode-report-bug t]))
     map)
   "Keymap for `fsharp-ts-base-mode'.")
 
@@ -787,10 +838,12 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   (setq-local comment-start "// ")
   (setq-local comment-end "")
   (setq-local comment-start-skip "//+\\s-*")
+  ;; Make fill-paragraph preserve // prefixes on wrapped comment lines
+  (setq-local adaptive-fill-regexp "[ \t]*\\(//+[ \t]*\\)*")
 
-  ;; Electric indentation on delimiters
-  (setq-local electric-indent-chars
-              (append "{}()" electric-indent-chars))
+  ;; F# indentation is context-sensitive; electric-indent can't compute
+  ;; correct indentation from a single keystroke, so inhibit it.
+  (setq-local electric-indent-inhibit t)
 
   (setq-local treesit-font-lock-feature-list
               '((comment definition)
@@ -805,6 +858,12 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
 
   ;; ff-find-other-file setup
   (setq-local ff-other-file-alist fsharp-ts-other-file-alist)
+
+  ;; outline-minor-mode integration (Emacs 30+)
+  (when (boundp 'treesit-outline-predicate)
+    (setq-local treesit-outline-predicate
+                (cons fsharp-ts-mode--defun-type-regexp
+                      #'fsharp-ts-mode--defun-valid-p)))
 
   ;; Prettify symbols
   (setq-local prettify-symbols-alist fsharp-ts-mode-prettify-symbols-alist))
