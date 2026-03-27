@@ -696,6 +696,51 @@ of sexps to move."
                (cons 'fsharp fsharp-ts-mode--compilation-error-regexp))
   (add-to-list 'compilation-error-regexp-alist 'fsharp))
 
+;;;; Indentation helpers
+
+(defun fsharp-ts-mode-shift-region-right (start end &optional count)
+  "Shift the region between START and END right by COUNT indentation levels.
+COUNT defaults to 1.  With a negative prefix argument, shifts left."
+  (interactive "r\np")
+  (let ((offset (* (or count 1) fsharp-ts-indent-offset)))
+    (indent-rigidly start end offset)))
+
+(defun fsharp-ts-mode-shift-region-left (start end &optional count)
+  "Shift the region between START and END left by COUNT indentation levels.
+COUNT defaults to 1.  With a negative prefix argument, shifts right."
+  (interactive "r\np")
+  (let ((offset (* (or count 1) (- fsharp-ts-indent-offset))))
+    (indent-rigidly start end offset)))
+
+(defun fsharp-ts-mode-guess-indent-offset ()
+  "Guess the indentation offset used in the current buffer.
+Scans the buffer for the most common indentation step and sets
+`fsharp-ts-indent-offset' accordingly."
+  (interactive)
+  (let ((counts (make-hash-table))
+        (best-offset fsharp-ts-indent-offset)
+        (best-count 0))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((indent (current-indentation)))
+          (when (> indent 0)
+            (puthash indent (1+ (gethash indent counts 0)) counts)))
+        (forward-line 1)))
+    ;; Find the most common non-zero indentation that could be a step.
+    ;; Check common offsets: 2, 3, 4, 8
+    (dolist (candidate '(2 3 4 8))
+      (let ((count 0))
+        (maphash (lambda (indent _)
+                   (when (zerop (% indent candidate))
+                     (setq count (+ count (gethash indent counts 0)))))
+                 counts)
+        (when (> count best-count)
+          (setq best-count count
+                best-offset candidate))))
+    (setq-local fsharp-ts-indent-offset best-offset)
+    (message "Guessed indent offset: %d" best-offset)))
+
 ;;;; Utility commands
 
 (defconst fsharp-ts-mode-report-bug-url
@@ -853,10 +898,17 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
     (define-key map (kbd "C-c C-a") #'ff-find-other-file)
     (define-key map (kbd "C-c C-c") #'compile)
     (define-key map (kbd "C-c C-d") #'fsharp-ts-mode-doc-at-point)
+    (define-key map (kbd "C-c >") #'fsharp-ts-mode-shift-region-right)
+    (define-key map (kbd "C-c <") #'fsharp-ts-mode-shift-region-left)
     (easy-menu-define fsharp-ts-mode-menu map "F# Mode Menu"
       '("F#"
         ["Compile" compile t]
         ["Switch to .fs/.fsi" ff-find-other-file t]
+        ["Shift Region Right" fsharp-ts-mode-shift-region-right
+         :active mark-active]
+        ["Shift Region Left" fsharp-ts-mode-shift-region-left
+         :active mark-active]
+        ["Guess Indent Offset" fsharp-ts-mode-guess-indent-offset t]
         "---"
         ["Browse F# Docs" fsharp-ts-mode-browse-fsharp-docs t]
         ["Look Up Symbol at Point" fsharp-ts-mode-doc-at-point t]
