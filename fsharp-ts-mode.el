@@ -743,6 +743,15 @@ The information is also copied to the kill ring."
   (interactive)
   (browse-url fsharp-ts-mode-fsharp-docs-url))
 
+(defun fsharp-ts-mode-doc-at-point ()
+  "Look up the identifier at point in the .NET API documentation."
+  (interactive)
+  (let ((symbol (thing-at-point 'symbol t)))
+    (unless symbol (user-error "No symbol at point"))
+    (browse-url
+     (format "https://learn.microsoft.com/en-us/dotnet/api/?term=%s"
+             (url-hexify-string symbol)))))
+
 ;;;; Prettify symbols
 
 (defcustom fsharp-ts-mode-prettify-symbols-alist
@@ -814,12 +823,14 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-a") #'ff-find-other-file)
     (define-key map (kbd "C-c C-c") #'compile)
+    (define-key map (kbd "C-c C-d") #'fsharp-ts-mode-doc-at-point)
     (easy-menu-define fsharp-ts-mode-menu map "F# Mode Menu"
       '("F#"
         ["Compile" compile t]
         ["Switch to .fs/.fsi" ff-find-other-file t]
         "---"
         ["Browse F# Docs" fsharp-ts-mode-browse-fsharp-docs t]
+        ["Look Up Symbol at Point" fsharp-ts-mode-doc-at-point t]
         "---"
         ["Install Grammars" fsharp-ts-mode-install-grammars t]
         ["Show Version" fsharp-ts-mode-version t]
