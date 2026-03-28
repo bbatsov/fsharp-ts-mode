@@ -991,6 +991,7 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
 (progn
   (add-to-list 'auto-mode-alist '("\\.fs\\'" . fsharp-ts-mode))
   (add-to-list 'auto-mode-alist '("\\.fsx\\'" . fsharp-ts-mode))
+  (add-to-list 'auto-mode-alist '("\\.fsscript\\'" . fsharp-ts-mode))
   (add-to-list 'auto-mode-alist '("\\.fsi\\'" . fsharp-ts-signature-mode)))
 
 ;; Register F# compilation error regexp once at load time
