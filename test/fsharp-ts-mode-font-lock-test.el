@@ -114,6 +114,23 @@
     (describe "function calls"
       (when-fontifying-it "highlights function application"
         ("let x = add 1 2\n"
-         ("add" font-lock-function-call-face))))))
+         ("add" font-lock-function-call-face)))
+
+      (when-fontifying-it "highlights pipe-left target"
+        ("let x = printfn <| \"hello\"\n"
+         ("printfn" font-lock-function-call-face)))))
+
+  (describe "additional highlights"
+    (when-fontifying-it "highlights wildcard pattern"
+      ("let f x =\n    match x with\n    | _ -> 0\n"
+       ("_" font-lock-constant-face)))
+
+    (when-fontifying-it "highlights CE builder name"
+      ("let w =\n    async {\n        return 42\n    }\n"
+       ("async" font-lock-constant-face)))
+
+    (when-fontifying-it "highlights preprocessor directives"
+      ("#if DEBUG\nlet y = 2\n#endif\n"
+       ("#if" font-lock-preprocessor-face)))))
 
 ;;; fsharp-ts-mode-font-lock-test.el ends here

@@ -203,7 +203,8 @@ The return value is suitable for `treesit-font-lock-settings'."
 
     :language language
     :feature 'bracket
-    '((["(" ")" "[" "]" "{" "}" "[|" "|]" "[<" ">]"]) @font-lock-bracket-face)
+    '((["(" ")" "[" "]" "{" "}" "[|" "|]" "[<" ">]" "{|" "|}"])
+      @font-lock-bracket-face)
 
     :language language
     :feature 'delimiter
@@ -263,7 +264,11 @@ The return value is suitable for `treesit-font-lock-settings'."
    :language 'fsharp
    :feature 'attribute
    '((attribute) @font-lock-preprocessor-face
-     (compiler_directive_decl) @font-lock-preprocessor-face)
+     (compiler_directive_decl) @font-lock-preprocessor-face
+     ;; Preprocessor conditionals: #if / #else / #endif
+     (preproc_if ["#if" "#endif"] @font-lock-preprocessor-face
+                 condition: (_) @font-lock-preprocessor-face)
+     (preproc_else "#else" @font-lock-preprocessor-face))
 
    :language 'fsharp
    :feature 'builtin
@@ -278,9 +283,14 @@ The return value is suitable for `treesit-font-lock-settings'."
 
    :language 'fsharp
    :feature 'constant
+   :override t
    '(((const) @font-lock-constant-face
       (:match "^\\(true\\|false\\|()\\|null\\)$"
-              @font-lock-constant-face)))
+              @font-lock-constant-face))
+     ;; Wildcard pattern
+     (wildcard_pattern) @font-lock-constant-face
+     ;; CE builder names (async, task, seq, etc.)
+     (ce_expression :anchor (_) @font-lock-constant-face))
 
    :language 'fsharp
    :feature 'escape-sequence
@@ -316,12 +326,20 @@ The return value is suitable for `treesit-font-lock-settings'."
        (long_identifier (_) @_mod
                         :anchor
                         (identifier) @font-lock-function-call-face)))
+     ;; x |> f -- highlight f as function call
      ((infix_expression
        (_)
        (infix_op) @_op
        (long_identifier_or_op
         (identifier) @font-lock-function-call-face))
-      (:match "^[|]>$" @_op)))))
+      (:match "^[|]>$" @_op))
+     ;; f <| x -- highlight f as function call
+     ((infix_expression
+       (long_identifier_or_op
+        (identifier) @font-lock-function-call-face)
+       (infix_op) @_op
+       (_))
+      (:match "^<[|]$" @_op)))))
 
 (defun fsharp-ts-mode--font-lock-settings-signature ()
   "Return fsharp-signature-specific font-lock rules."
