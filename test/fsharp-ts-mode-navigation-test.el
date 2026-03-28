@@ -43,7 +43,9 @@
 
   (it "produces correct imenu categories"
     (with-fsharp-ts-mode-buffer
-        "type Color =
+        "namespace MyApp
+
+type Color =
     | Red
     | Green
 
@@ -57,7 +59,7 @@ module Sub =
       (let* ((index (treesit-simple-imenu))
              (categories (mapcar #'car index)))
         (expect categories :to-have-same-items-as
-                '("Type" "Exception" "Value" "Module")))))
+                '("Namespace" "Type" "Case" "Exception" "Value" "Module")))))
 
   (it "produces fully-qualified names for nested definitions"
     (with-fsharp-ts-mode-buffer
@@ -67,6 +69,20 @@ module Sub =
       (let* ((index (treesit-simple-imenu))
              (value-entries (cdr (assoc "Value" index)))
              (names (mapcar #'car value-entries)))
-        (expect names :to-contain "Sub.inner")))))
+        (expect names :to-contain "Sub.inner"))))
+
+  (it "produces qualified names for union cases"
+    (with-fsharp-ts-mode-buffer
+        "namespace MyApp
+
+type Color =
+    | Red
+    | Green
+"
+      (let* ((index (treesit-simple-imenu))
+             (case-entries (cdr (assoc "Case" index)))
+             (names (mapcar #'car case-entries)))
+        (expect names :to-contain "MyApp.Color.Red")
+        (expect names :to-contain "MyApp.Color.Green")))))
 
 ;;; fsharp-ts-mode-navigation-test.el ends here

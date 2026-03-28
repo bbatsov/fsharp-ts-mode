@@ -602,6 +602,10 @@ Return nil if there is no name or if NODE is not a defun node."
        (or (fsharp-ts-mode--subtree-text prop "method" 1)
            (fsharp-ts-mode--subtree-text prop "\\`identifier\\'" 1))))
     ("module_defn"
+     (fsharp-ts-mode--subtree-text node "\\`identifier\\'" 1))
+    ("namespace"
+     (fsharp-ts-mode--subtree-text node "long_identifier" 1))
+    ((or "union_type_case" "enum_type_case")
      (fsharp-ts-mode--subtree-text node "\\`identifier\\'" 1))))
 
 (defun fsharp-ts-mode--defun-valid-p (node)
@@ -632,7 +636,9 @@ Joins ancestor names with `.' as delimiter."
       name)))
 
 (defvar fsharp-ts-mode--imenu-settings
-  `(("Type" "\\`type_definition\\'" nil fsharp-ts-mode--imenu-name)
+  `(("Namespace" "\\`namespace\\'" nil fsharp-ts-mode--imenu-name)
+    ("Type" "\\`type_definition\\'" nil fsharp-ts-mode--imenu-name)
+    ("Case" "\\`\\(?:union\\|enum\\)_type_case\\'" nil fsharp-ts-mode--imenu-name)
     ("Exception" "\\`exception_definition\\'" nil fsharp-ts-mode--imenu-name)
     ("Value" "\\`function_or_value_defn\\'" nil fsharp-ts-mode--imenu-name)
     ("Member" "\\`member_defn\\'" nil fsharp-ts-mode--imenu-name)
