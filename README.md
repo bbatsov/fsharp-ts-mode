@@ -140,18 +140,75 @@ customize them globally or locally for F# buffers:
 
 ### Eglot
 
-`fsharp-ts-mode` works with Eglot out of the box if you have
-[FsAutoComplete](https://github.com/fsharp/FsAutoComplete) installed:
-
-```sh
-dotnet tool install -g fsautocomplete
-```
-
-Then enable Eglot:
+`fsharp-ts-mode` works with Eglot out of the box. For basic usage, install
+[FsAutoComplete](https://github.com/fsharp/FsAutoComplete) manually and
+enable Eglot:
 
 ```emacs-lisp
 (add-hook 'fsharp-ts-mode-hook #'eglot-ensure)
 ```
+
+For a richer experience, load `fsharp-ts-eglot` which provides automatic
+server installation, custom LSP commands, and fine-grained feature toggles:
+
+```emacs-lisp
+(require 'fsharp-ts-eglot)
+(add-hook 'fsharp-ts-mode-hook #'eglot-ensure)
+```
+
+FsAutoComplete will be downloaded automatically on first use. To pin a
+specific version instead of always fetching the latest:
+
+```emacs-lisp
+(setq fsharp-ts-eglot-server-version "0.76.0")
+```
+
+#### LSP feature toggles
+
+Individual FsAutoComplete features can be toggled via defcustoms:
+
+```emacs-lisp
+;; Disable the linter
+(setq fsharp-ts-eglot-linter nil)
+
+;; Enable pipeline type hints (off by default)
+(setq fsharp-ts-eglot-pipeline-hints t)
+
+;; Disable inlay hints
+(setq fsharp-ts-eglot-inlay-hints nil)
+
+;; Enable the simplify-name analyzer
+(setq fsharp-ts-eglot-simplify-name-analyzer t)
+```
+
+Available toggles: `fsharp-ts-eglot-linter`,
+`fsharp-ts-eglot-unused-opens-analyzer`,
+`fsharp-ts-eglot-unused-declarations-analyzer`,
+`fsharp-ts-eglot-simplify-name-analyzer`,
+`fsharp-ts-eglot-enable-analyzers`,
+`fsharp-ts-eglot-code-lenses`,
+`fsharp-ts-eglot-inlay-hints`,
+`fsharp-ts-eglot-pipeline-hints`.
+
+#### Custom LSP commands
+
+| Key / Command                          | Description                                         |
+|----------------------------------------|-----------------------------------------------------|
+| `fsharp-ts-eglot-signature-at-point`   | Display type signature of symbol at point            |
+| `fsharp-ts-eglot-f1-help`             | Open MSDN docs for symbol (falls back to .NET search)|
+| `fsharp-ts-eglot-generate-doc-comment` | Generate XML doc comment stub                        |
+
+#### .fsproj manipulation
+
+File ordering matters in F# projects. These commands manipulate the current
+file's position in the `.fsproj`:
+
+| Command                                | Description                              |
+|----------------------------------------|------------------------------------------|
+| `fsharp-ts-eglot-fsproj-move-file-up`  | Move file up in compilation order        |
+| `fsharp-ts-eglot-fsproj-move-file-down`| Move file down in compilation order      |
+| `fsharp-ts-eglot-fsproj-add-file`      | Add current file to the project          |
+| `fsharp-ts-eglot-fsproj-remove-file`   | Remove current file from the project     |
 
 ### F# Interactive (REPL)
 
@@ -302,7 +359,7 @@ based on `auto-mode-alist` ordering.
 | Indentation         | SMIE + custom heuristics           | Tree-sitter indent rules                                         |
 | Min Emacs version   | 25                                 | 29.1 (tree-sitter support)                                       |
 | REPL                | Built-in (`inf-fsharp-mode`)       | Built-in (`fsharp-ts-repl`) with tree-sitter input highlighting  |
-| Eglot/LSP           | Via separate `eglot-fsharp`        | Built-in (just `eglot-ensure`)                                   |
+| Eglot/LSP           | Via separate `eglot-fsharp`        | Built-in (`fsharp-ts-eglot`) with auto-install + custom commands |
 | Compilation         | `fsc`/`msbuild` patterns           | `dotnet build` patterns                                          |
 | Imenu               | Basic                              | Fully-qualified names (e.g., `Module.func`)                      |
 | forward-sexp        | Syntax-table                       | Tree-sitter + syntax-table hybrid                                |
@@ -310,10 +367,9 @@ based on `auto-mode-alist` ordering.
 
 ### What fsharp-ts-mode doesn't have (yet)
 
-- **Automatic LSP server installation** -- `eglot-fsharp` auto-downloads
-  FsAutoComplete. With `fsharp-ts-mode` you install it yourself
-  (`dotnet tool install -g fsautocomplete`), then Eglot picks it up
-  automatically.
+- **TRAMP / remote server support** -- `eglot-fsharp` wraps the server
+  command for remote access via TRAMP. `fsharp-ts-eglot` doesn't handle
+  this yet.
 
 ### Switching over
 
