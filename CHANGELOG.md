@@ -15,10 +15,6 @@
   and anonymous record brackets `{|`/`|}`.
 - Support `.fsscript` file extension for F# scripts.
 
-### Bug fixes
-
-- Fix lint warning: capitalize defgroup docstring in `fsharp-ts-dotnet.el`.
-
 ## 0.1.0 (2026-03-27)
 
 ### New features
