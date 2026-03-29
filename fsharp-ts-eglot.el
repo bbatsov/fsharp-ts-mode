@@ -153,29 +153,42 @@ Set to nil to use a globally installed fsautocomplete."
 
 ;;;; Server installation and discovery
 
+(defvar fsharp-ts-eglot--installed-version-cache nil
+  "Cached installed FsAutoComplete version.
+Set to nil to force re-check on next query.")
+
 (defconst fsharp-ts-eglot--nuget-search-url
   "https://azuresearch-usnc.nuget.org/query?q=fsautocomplete&prerelease=false&packageType=DotnetTool"
   "NuGet API URL for searching FsAutoComplete.")
 
 (defun fsharp-ts-eglot--latest-version ()
-  "Fetch the latest FsAutoComplete version from NuGet."
-  (with-temp-buffer
-    (url-insert-file-contents fsharp-ts-eglot--nuget-search-url)
-    (let* ((json-object-type 'alist)
-           (json-array-type 'list)
-           (result (json-read))
-           (data (alist-get 'data result))
-           (package (car data)))
-      (alist-get 'version package))))
+  "Fetch the latest FsAutoComplete version from NuGet.
+Signals an error with a user-friendly message on network failure."
+  (condition-case err
+      (with-temp-buffer
+        (url-insert-file-contents fsharp-ts-eglot--nuget-search-url)
+        (let* ((json-object-type 'alist)
+               (json-array-type 'list)
+               (result (json-read))
+               (data (alist-get 'data result))
+               (package (car data)))
+          (or (alist-get 'version package)
+              (error "No version found in NuGet response"))))
+    (error
+     (error "Failed to fetch FsAutoComplete version from NuGet: %s"
+            (error-message-string err)))))
 
 (defun fsharp-ts-eglot--installed-version ()
-  "Return the installed FsAutoComplete version, or nil."
-  (when fsharp-ts-eglot-server-install-dir
-    (let ((output (shell-command-to-string
-                   (format "dotnet tool list --tool-path %s"
-                           (shell-quote-argument fsharp-ts-eglot-server-install-dir)))))
-      (when (string-match "fsautocomplete\\s-+\\([0-9.]+\\)" output)
-        (match-string 1 output)))))
+  "Return the installed FsAutoComplete version, or nil.
+Caches the result to avoid repeated shell-outs."
+  (or fsharp-ts-eglot--installed-version-cache
+      (when fsharp-ts-eglot-server-install-dir
+        (let ((output (shell-command-to-string
+                       (format "dotnet tool list --tool-path %s"
+                               (shell-quote-argument fsharp-ts-eglot-server-install-dir)))))
+          (when (string-match "fsautocomplete\\s-+\\([0-9.]+\\)" output)
+            (setq fsharp-ts-eglot--installed-version-cache
+                  (match-string 1 output)))))))
 
 (defun fsharp-ts-eglot--server-command ()
   "Return the command list to start FsAutoComplete."
@@ -210,7 +223,9 @@ With prefix argument FORCE, reinstall even if already present."
                              (shell-quote-argument install-dir)
                              (shell-quote-argument desired)))))
         (if (string-match-p "was successfully installed" output)
-            (message "FsAutoComplete %s installed successfully" desired)
+            (progn
+              (setq fsharp-ts-eglot--installed-version-cache desired)
+              (message "FsAutoComplete %s installed successfully" desired))
           (error "Failed to install FsAutoComplete: %s" output))))))
 
 (defun fsharp-ts-eglot--ensure-server ()
@@ -231,6 +246,8 @@ Returns the result or nil if eglot is not active."
 (defun fsharp-ts-eglot-signature-at-point ()
   "Display the type signature of the symbol at point."
   (interactive)
+  ;; NOTE: eglot--TextDocumentPositionParams is an internal eglot API.
+  ;; There is no public equivalent; eglot-fsharp uses the same approach.
   (let* ((params (eglot--TextDocumentPositionParams))
          (result (fsharp-ts-eglot--request :fsharp/signature params)))
     (if result
@@ -280,39 +297,39 @@ Falls back to a .NET API search if the LSP server doesn't provide a URL."
 
 (defun fsharp-ts-eglot--fsproj-request (method)
   "Send an fsproj METHOD request for the current file."
-  (let* ((fsproj (or (fsharp-ts-eglot--fsproj-for-current-file)
-                     (user-error "No .fsproj found for current file")))
-         (file (or (buffer-file-name)
+  (let* ((file (or (buffer-file-name)
                    (user-error "Buffer is not visiting a file")))
+         (fsproj (or (fsharp-ts-eglot--fsproj-for-current-file)
+                     (user-error "No .fsproj found for current file")))
          (relative (file-relative-name file (file-name-directory fsproj))))
     (fsharp-ts-eglot--request method
-                               (list :FsProj fsproj
-                                     :FileVirtualPath relative))))
+                              (list :FsProj fsproj
+                                    :FileVirtualPath relative))))
 
 (defun fsharp-ts-eglot-fsproj-move-file-up ()
   "Move the current file up in the .fsproj compilation order."
   (interactive)
-  (fsharp-ts-eglot--fsproj-request :fsproj/moveFileUp)
-  (message "Moved file up in project"))
+  (when (fsharp-ts-eglot--fsproj-request :fsproj/moveFileUp)
+    (message "Moved file up in project")))
 
 (defun fsharp-ts-eglot-fsproj-move-file-down ()
   "Move the current file down in the .fsproj compilation order."
   (interactive)
-  (fsharp-ts-eglot--fsproj-request :fsproj/moveFileDown)
-  (message "Moved file down in project"))
+  (when (fsharp-ts-eglot--fsproj-request :fsproj/moveFileDown)
+    (message "Moved file down in project")))
 
 (defun fsharp-ts-eglot-fsproj-remove-file ()
   "Remove the current file from the .fsproj."
   (interactive)
   (when (y-or-n-p "Remove current file from the project?")
-    (fsharp-ts-eglot--fsproj-request :fsproj/removeFile)
-    (message "Removed file from project")))
+    (when (fsharp-ts-eglot--fsproj-request :fsproj/removeFile)
+      (message "Removed file from project"))))
 
 (defun fsharp-ts-eglot-fsproj-add-file ()
   "Add the current file to the .fsproj."
   (interactive)
-  (fsharp-ts-eglot--fsproj-request :fsproj/addFile)
-  (message "Added file to project"))
+  (when (fsharp-ts-eglot--fsproj-request :fsproj/addFile)
+    (message "Added file to project")))
 
 ;;;; xref workaround
 
@@ -340,7 +357,6 @@ Ensures the server is installed before returning the command."
   (fsharp-ts-eglot--ensure-server)
   (fsharp-ts-eglot--server-command))
 
-;; Register for both fsharp-ts-mode and fsharp-ts-signature-mode
 (add-to-list 'eglot-server-programs
              '((fsharp-ts-mode fsharp-ts-signature-mode) .
                (fsharp-ts-eglot-server . fsharp-ts-eglot--server-contact)))
