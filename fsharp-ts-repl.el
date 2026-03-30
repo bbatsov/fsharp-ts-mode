@@ -35,7 +35,11 @@
 (require 'comint)
 (require 'json)
 (require 'pulse)
+(require 'seq)
 (require 'fsharp-ts-mode)
+
+(declare-function eglot-current-server "eglot")
+(declare-function jsonrpc-request "jsonrpc")
 
 (defgroup fsharp-ts-repl nil
   "F# Interactive (REPL) integration for fsharp-ts-mode."
@@ -285,11 +289,36 @@ Each entry is an alist parsed from the JSON output.  Returns nil on failure."
           (alist-get (intern item) items))
       (error nil))))
 
-(defun fsharp-ts-repl--resolve-project-refs (fsproj)
-  "Resolve references and source files for FSPROJ.
-Returns a plist (:references REFS :sources SOURCES) where REFS are
-DLL paths and SOURCES are .fs file paths in compilation order."
-  (message "Resolving project references for %s..." (file-name-nondirectory fsproj))
+(defun fsharp-ts-repl--resolve-via-fsac (fsproj)
+  "Try to get project data for FSPROJ from FsAutoComplete via eglot.
+Returns a plist (:references REFS :sources SOURCES) or nil if FSAC
+is not available or doesn't have project data."
+  (condition-case nil
+      (when (and (fboundp 'eglot-current-server) (eglot-current-server))
+        (let* ((params (list :Project (list :uri (concat "file://" fsproj))))
+               (result (jsonrpc-request (eglot-current-server)
+                                        :fsharp/project params
+                                        :timeout 5)))
+          (when result
+            (let* ((refs (mapcar (lambda (r) (if (stringp r) r (alist-get 'FullPath r)))
+                                 (append (alist-get 'References result) nil)))
+                   (sources (mapcar (lambda (s) (if (stringp s) s (alist-get 'FullPath s)))
+                                    (append (alist-get 'Files result) nil)))
+                   (filtered-refs
+                    (seq-filter (lambda (path)
+                                  (not (seq-some
+                                        (lambda (excl)
+                                          (string-match-p (regexp-quote excl) path))
+                                        fsharp-ts-repl--excluded-references)))
+                                refs)))
+              (when (or filtered-refs sources)
+                (list :references filtered-refs :sources sources))))))
+    (error nil)))
+
+(defun fsharp-ts-repl--resolve-via-msbuild (fsproj)
+  "Resolve references and source files for FSPROJ via dotnet msbuild.
+Returns a plist (:references REFS :sources SOURCES)."
+  (message "Resolving project references via dotnet msbuild...")
   (let* ((ref-items (fsharp-ts-repl--msbuild-get-items
                      fsproj "ResolveAssemblyReferences" "ReferencePath"))
          (src-items (fsharp-ts-repl--msbuild-get-items fsproj nil "Compile"))
@@ -306,6 +335,15 @@ DLL paths and SOURCES are .fs file paths in compilation order."
                         (mapcar (lambda (item) (alist-get 'FullPath item))
                                 src-items))))
     (list :references refs :sources sources)))
+
+(defun fsharp-ts-repl--resolve-project-refs (fsproj)
+  "Resolve references and source files for FSPROJ.
+Tries FsAutoComplete via eglot first (instant if available), then
+falls back to `dotnet msbuild' (slower but works without LSP).
+Returns a plist (:references REFS :sources SOURCES)."
+  (message "Resolving project references for %s..." (file-name-nondirectory fsproj))
+  (or (fsharp-ts-repl--resolve-via-fsac fsproj)
+      (fsharp-ts-repl--resolve-via-msbuild fsproj)))
 
 (defun fsharp-ts-repl--format-directives (project-data)
   "Format PROJECT-DATA as FSI #r and #load directives."
