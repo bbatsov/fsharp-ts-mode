@@ -69,6 +69,12 @@ Uses `fsharp-ts-mode-guess-indent-offset' to scan the buffer and set
   :type 'boolean
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
+(defcustom fsharp-ts-show-project-name t
+  "When non-nil, show the project name in the mode-line.
+The project name is detected from the nearest `.fsproj' file."
+  :type 'boolean
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
 (defvar fsharp-ts--debug nil
   "Enable debugging messages and show the current node in the mode-line.
 When set to t, show indentation debug info.
@@ -1070,7 +1076,7 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
     (fsharp-ts-mode-guess-indent-offset))
 
   ;; Detect and display project name in mode-line
-  (when buffer-file-name
+  (when (and fsharp-ts-show-project-name buffer-file-name)
     (setq fsharp-ts-mode--project-name (fsharp-ts-mode--detect-project-name))
     (when fsharp-ts-mode--project-name
       (setq mode-name (format "F#[%s]" fsharp-ts-mode--project-name)))))
