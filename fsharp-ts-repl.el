@@ -33,6 +33,7 @@
 ;;; Code:
 
 (require 'comint)
+(require 'json)
 (require 'pulse)
 (require 'fsharp-ts-mode)
 
@@ -253,6 +254,119 @@ Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
   (fsharp-ts-repl--input-sender (fsharp-ts-repl--process)
                                  (format "#load %S" file)))
 
+;;;; Project references
+
+(defvar fsharp-ts-repl--excluded-references
+  '("FSharp.Core" "mscorlib" "System.Private.CoreLib" "netstandard")
+  "Assembly names to exclude from #r directives (FSI loads these itself).")
+
+(defun fsharp-ts-repl--find-fsproj ()
+  "Find the .fsproj for the current buffer."
+  (when-let* ((file (buffer-file-name))
+              (dir (file-name-directory file))
+              (proj-dir (locate-dominating-file
+                         dir (lambda (d)
+                               (directory-files d nil "\\.fsproj\\'" t)))))
+    (car (directory-files proj-dir t "\\.fsproj\\'"))))
+
+(defun fsharp-ts-repl--msbuild-get-items (fsproj target item)
+  "Run `dotnet msbuild' on FSPROJ with TARGET and return ITEM entries.
+Each entry is an alist parsed from the JSON output.  Returns nil on failure."
+  (let* ((cmd (format "dotnet msbuild %s %s -getItem:%s"
+                      (shell-quote-argument fsproj)
+                      (if target (format "-t:%s" target) "")
+                      item))
+         (output (shell-command-to-string cmd)))
+    (condition-case nil
+        (let* ((json-object-type 'alist)
+               (json-array-type 'list)
+               (parsed (json-read-from-string output))
+               (items (alist-get 'Items parsed)))
+          (alist-get (intern item) items))
+      (error nil))))
+
+(defun fsharp-ts-repl--resolve-project-refs (fsproj)
+  "Resolve references and source files for FSPROJ.
+Returns a plist (:references REFS :sources SOURCES) where REFS are
+DLL paths and SOURCES are .fs file paths in compilation order."
+  (message "Resolving project references for %s..." (file-name-nondirectory fsproj))
+  (let* ((ref-items (fsharp-ts-repl--msbuild-get-items
+                     fsproj "ResolveAssemblyReferences" "ReferencePath"))
+         (src-items (fsharp-ts-repl--msbuild-get-items fsproj nil "Compile"))
+         (refs (delq nil
+                     (mapcar (lambda (item)
+                               (let ((path (alist-get 'FullPath item))
+                                     (name (alist-get 'Filename item)))
+                                 (when (and path
+                                            (not (member name
+                                                         fsharp-ts-repl--excluded-references)))
+                                   path)))
+                             ref-items)))
+         (sources (delq nil
+                        (mapcar (lambda (item) (alist-get 'FullPath item))
+                                src-items))))
+    (list :references refs :sources sources)))
+
+(defun fsharp-ts-repl--format-directives (project-data)
+  "Format PROJECT-DATA as FSI #r and #load directives."
+  (let ((refs (plist-get project-data :references))
+        (sources (plist-get project-data :sources)))
+    (concat
+     (when refs
+       (concat "// Assembly references\n"
+               (mapconcat (lambda (r) (format "#r @\"%s\"" r)) refs "\n")
+               "\n\n"))
+     (when sources
+       (concat "// Source files\n"
+               (mapconcat (lambda (s) (format "#load @\"%s\"" s)) sources "\n")
+               "\n")))))
+
+;;;###autoload
+(defun fsharp-ts-repl-send-project-references ()
+  "Send the current project's references and source files to the REPL.
+Resolves assembly references and source files from the nearest `.fsproj'
+via `dotnet msbuild', then sends `#r' and `#load' directives to FSI."
+  (interactive)
+  (let* ((fsproj (or (fsharp-ts-repl--find-fsproj)
+                     (user-error "No .fsproj found for current buffer")))
+         (data (fsharp-ts-repl--resolve-project-refs fsproj))
+         (directives (fsharp-ts-repl--format-directives data))
+         (ref-count (length (plist-get data :references)))
+         (src-count (length (plist-get data :sources))))
+    (when (string-empty-p directives)
+      (user-error "No references or sources found in %s" fsproj))
+    (fsharp-ts-repl--ensure-running)
+    (let ((proc (fsharp-ts-repl--process)))
+      ;; Send each directive individually to avoid overwhelming FSI
+      (dolist (line (split-string directives "\n" t))
+        (unless (string-prefix-p "//" line)
+          (comint-send-string proc (concat line "\n"))))
+      (comint-send-string proc ";;\n"))
+    (message "Sent %d references and %d source files to FSI" ref-count src-count)))
+
+;;;###autoload
+(defun fsharp-ts-repl-generate-references-file ()
+  "Generate a references.fsx buffer with #r and #load directives.
+Resolves assembly references and source files from the nearest `.fsproj'
+via `dotnet msbuild'."
+  (interactive)
+  (let* ((fsproj (or (fsharp-ts-repl--find-fsproj)
+                     (user-error "No .fsproj found for current buffer")))
+         (data (fsharp-ts-repl--resolve-project-refs fsproj))
+         (directives (fsharp-ts-repl--format-directives data))
+         (buf-name (format "*%s-references.fsx*"
+                           (file-name-sans-extension
+                            (file-name-nondirectory fsproj)))))
+    (when (string-empty-p directives)
+      (user-error "No references or sources found in %s" fsproj))
+    (with-current-buffer (get-buffer-create buf-name)
+      (erase-buffer)
+      (insert (format "// Generated from %s\n\n" fsproj))
+      (insert directives)
+      (fsharp-ts-mode)
+      (goto-char (point-min)))
+    (pop-to-buffer buf-name)))
+
 ;;;; REPL management
 
 (defun fsharp-ts-repl-clear-buffer ()
@@ -278,6 +392,7 @@ Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
     (define-key map (kbd "C-c C-r") #'fsharp-ts-repl-send-region)
     (define-key map (kbd "C-c C-b") #'fsharp-ts-repl-send-buffer)
     (define-key map (kbd "C-c C-l") #'fsharp-ts-repl-load-file)
+    (define-key map (kbd "C-c C-p") #'fsharp-ts-repl-send-project-references)
     (define-key map (kbd "C-c C-i") #'fsharp-ts-repl-interrupt)
     (define-key map (kbd "C-c C-k") #'fsharp-ts-repl-clear-buffer)
 
@@ -289,6 +404,8 @@ Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
         ["Send Region" fsharp-ts-repl-send-region]
         ["Send Buffer" fsharp-ts-repl-send-buffer]
         ["Load File" fsharp-ts-repl-load-file]
+        ["Send Project References" fsharp-ts-repl-send-project-references]
+        ["Generate References File" fsharp-ts-repl-generate-references-file]
         "--"
         ["Interrupt REPL" fsharp-ts-repl-interrupt]
         ["Clear REPL Buffer" fsharp-ts-repl-clear-buffer]))
