@@ -35,6 +35,10 @@
   rich type documentation (signature, comments, constructors, interfaces, fields,
   functions, attributes) for the symbol at point. Auto-updates via
   `fsharp-ts-info-mode`. Uses `fsharp/documentation` FSAC endpoint.
+- Type signature overlays (`fsharp-ts-lens.el`): show inferred types as inline
+  overlays after function definitions, similar to Ionide's LineLens. Refreshes
+  on save via `fsharp-ts-lens-mode`. Uses `fsharp/lineLens` and
+  `fsharp/signature` FSAC endpoints.
 - FSDN search by type signature (`fsharp-ts-mode-search-by-signature`).
 - Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.

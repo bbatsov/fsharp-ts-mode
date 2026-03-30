@@ -224,6 +224,20 @@ file's position in the `.fsproj`:
 | `fsharp-ts-eglot-fsproj-add-file`      | Add current file to the project          |
 | `fsharp-ts-eglot-fsproj-remove-file`   | Remove current file from the project     |
 
+#### Type signature overlays (LineLens)
+
+`fsharp-ts-lens.el` shows inferred type signatures as inline overlays after
+function definitions, similar to Ionide's LineLens:
+
+```emacs-lisp
+(require 'fsharp-ts-lens)
+(add-hook 'fsharp-ts-mode-hook #'fsharp-ts-lens-mode)
+```
+
+Overlays are refreshed on save and can be updated manually with
+`M-x fsharp-ts-lens-refresh`. The overlay prefix (default `" // "`) and face
+are customizable via `fsharp-ts-lens-prefix` and `fsharp-ts-lens-face`.
+
 #### Documentation info panel
 
 `fsharp-ts-info.el` provides a persistent documentation panel that shows
