@@ -154,7 +154,7 @@ Call with prefix arg to refresh the cache."
 
 ;;;###autoload
 (defun fsharp-ts-dotnet-new (template &optional name output)
-  "Create a new F# project from TEMPLATE.
+  "Create a new F# project from TEMPLATE with optional NAME and OUTPUT dir.
 Prompts with completion over available templates filtered to F#.
 With prefix argument, refresh the template cache before prompting."
   (interactive
