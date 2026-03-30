@@ -263,8 +263,7 @@ The return value is suitable for `treesit-font-lock-settings'."
      (import_decl (long_identifier) @font-lock-type-face)
      ;; Module/type parts in dot expressions (base position)
      (dot_expression base: (long_identifier_or_op (identifier) @font-lock-type-face))
-     (dot_expression base: (long_identifier_or_op (long_identifier (identifier) @font-lock-type-face)))
-)
+     (dot_expression base: (long_identifier_or_op (long_identifier (identifier) @font-lock-type-face))))
 
    :language 'fsharp
    :feature 'attribute
@@ -858,6 +857,41 @@ The information is also copied to the kill ring."
      (format "https://learn.microsoft.com/en-us/dotnet/api/?term=%s"
              (url-hexify-string symbol)))))
 
+;;;; Comment handling
+
+(defun fsharp-ts-mode--comment-indent-new-line (&optional soft)
+  "Continue doc comments on the next line.
+When the current line is a `///' doc comment, insert `/// ' on the
+new line.  For regular `//` comments, insert `// '.  Otherwise
+fall back to `comment-indent-new-line'.
+SOFT is passed through to `comment-indent-new-line'."
+  (let ((line (buffer-substring-no-properties
+               (line-beginning-position) (point))))
+    (if (string-match "^\\([ \t]*\\)///\\( \\)?" line)
+        (progn
+          (insert "\n" (match-string 1 line) "/// "))
+      (if (string-match "^\\([ \t]*\\)//\\( \\)?" line)
+          (progn
+            (insert "\n" (match-string 1 line) "// "))
+        (comment-indent-new-line soft)))))
+
+;;;; Project name detection
+
+(defvar-local fsharp-ts-mode--project-name nil
+  "Cached project name for the current buffer.")
+
+(defun fsharp-ts-mode--detect-project-name ()
+  "Detect the F# project name for the current buffer.
+Returns the .fsproj filename without extension, or nil."
+  (when-let* ((file (buffer-file-name))
+              (dir (file-name-directory file))
+              (proj-dir (locate-dominating-file
+                         dir (lambda (d)
+                               (directory-files d nil "\\.fsproj\\'" t)))))
+    (let ((fsproj (car (directory-files proj-dir nil "\\.fsproj\\'"))))
+      (when fsproj
+        (file-name-sans-extension fsproj)))))
+
 ;;;; Build directory awareness
 
 (defun fsharp-ts-mode--resolve-build-path (file)
@@ -999,6 +1033,8 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   (setq-local comment-start-skip "//+\\s-*")
   ;; Make fill-paragraph preserve // prefixes on wrapped comment lines
   (setq-local adaptive-fill-regexp "[ \t]*\\(//+[ \t]*\\)*")
+  ;; Auto-continue /// doc comments on newline
+  (setq-local comment-line-break-function #'fsharp-ts-mode--comment-indent-new-line)
 
   ;; F# indentation is context-sensitive; electric-indent can't compute
   ;; correct indentation from a single keystroke, so inhibit it.
@@ -1031,7 +1067,13 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   (when (and fsharp-ts-guess-indent-offset
              buffer-file-name
              (> (buffer-size) 0))
-    (fsharp-ts-mode-guess-indent-offset)))
+    (fsharp-ts-mode-guess-indent-offset))
+
+  ;; Detect and display project name in mode-line
+  (when buffer-file-name
+    (setq fsharp-ts-mode--project-name (fsharp-ts-mode--detect-project-name))
+    (when fsharp-ts-mode--project-name
+      (setq mode-name (format "F#[%s]" fsharp-ts-mode--project-name)))))
 
 ;;;###autoload
 (define-derived-mode fsharp-ts-mode fsharp-ts-base-mode "F#"

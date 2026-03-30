@@ -135,6 +135,40 @@ With prefix argument, run `dotnet watch run'."
   "History for `fsharp-ts-dotnet-command'.")
 
 ;;;###autoload
+(defun fsharp-ts-dotnet-new (template &optional name output)
+  "Create a new F# project from TEMPLATE.
+Prompts with completion over available templates filtered to F#.
+Optional NAME and OUTPUT directory can be specified with prefix arg."
+  (interactive
+   (let* ((output (shell-command-to-string
+                   (format "%s new list --language F# --columns template,short-name"
+                           (shell-quote-argument fsharp-ts-dotnet-program))))
+          (lines (cdr (split-string output "\n" t "[ \t]+")))
+          ;; Parse lines: "Template Name    short-name"
+          (templates (delq nil
+                          (mapcar (lambda (line)
+                                    (when (string-match "^\\(.+?\\)  +\\([^ ]+\\)" line)
+                                      (match-string 2 line)))
+                                  lines)))
+          (template (completing-read "Template: " templates nil t)))
+     (if current-prefix-arg
+         (list template
+               (read-string "Project name: ")
+               (read-directory-name "Output directory: "))
+       (list template nil nil))))
+  (let* ((default-directory (or output default-directory))
+         (args (list "new" template "--language" "F#"))
+         (args (if (and name (not (string-empty-p name)))
+                   (append args (list "--name" name))
+                 args))
+         (args (if (and output (not (string-empty-p output)))
+                   (append args (list "--output" output))
+                 args))
+         (cmd (mapconcat #'shell-quote-argument
+                         (cons fsharp-ts-dotnet-program args) " ")))
+    (compile cmd)))
+
+;;;###autoload
 (defun fsharp-ts-dotnet-command (command)
   "Run an arbitrary dotnet COMMAND in the project root.
 Prompts for the full command string (without the `dotnet' prefix).
@@ -188,6 +222,7 @@ The command string is passed as-is, not shell-quoted."
     (define-key map (kbd "C-c C-d c") #'fsharp-ts-dotnet-clean)
     (define-key map (kbd "C-c C-d R") #'fsharp-ts-dotnet-restore)
     (define-key map (kbd "C-c C-d f") #'fsharp-ts-dotnet-format)
+    (define-key map (kbd "C-c C-d n") #'fsharp-ts-dotnet-new)
     (define-key map (kbd "C-c C-d d") #'fsharp-ts-dotnet-command)
     (define-key map (kbd "C-c C-d p") #'fsharp-ts-dotnet-find-project-file)
     (define-key map (kbd "C-c C-d s") #'fsharp-ts-dotnet-find-solution-file)
@@ -218,6 +253,7 @@ The command string is passed as-is, not shell-quoted."
         ["Find .fsproj" fsharp-ts-dotnet-find-project-file]
         ["Find .sln" fsharp-ts-dotnet-find-solution-file]
         "---"
+        ["New Project..." fsharp-ts-dotnet-new]
         ["Run Command..." fsharp-ts-dotnet-command]))
     map)
   "Keymap for `fsharp-ts-dotnet-mode'.")

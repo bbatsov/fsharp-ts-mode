@@ -90,6 +90,11 @@ Set to nil to use a globally installed fsautocomplete."
   :type 'boolean
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
+(defcustom fsharp-ts-eglot-unnecessary-parens-analyzer t
+  "When non-nil, detect and offer to remove unnecessary parentheses."
+  :type 'boolean
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
 (defcustom fsharp-ts-eglot-linter t
   "When non-nil, enable the built-in FSharpLint integration."
   :type 'boolean
@@ -131,6 +136,7 @@ Set to nil to use a globally installed fsautocomplete."
          :UnusedOpensAnalyzer (if fsharp-ts-eglot-unused-opens-analyzer t :json-false)
          :UnusedDeclarationsAnalyzer (if fsharp-ts-eglot-unused-declarations-analyzer t :json-false)
          :SimplifyNameAnalyzer (if fsharp-ts-eglot-simplify-name-analyzer t :json-false)
+         :UnnecessaryParenthesesAnalyzer (if fsharp-ts-eglot-unnecessary-parens-analyzer t :json-false)
          :EnableReferenceCodeLens (if fsharp-ts-eglot-code-lenses t :json-false)
          :inlayHints (list
                       :enabled (if fsharp-ts-eglot-inlay-hints t :json-false)
