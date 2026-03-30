@@ -110,18 +110,33 @@ Rules are tried in order, first match wins:
 7. Body indentation (functions, types, modules, expressions)
 8. Error recovery fallback
 
-### Supertype nodes (bool, unit, null)
+### Supertype nodes
 
-The `bool`, `unit`, and `null` node types in the grammar are "supertypes" --
-they exist in the tree but cannot be matched directly in tree-sitter queries.
-Attempting to query `(bool) @face` compiles successfully but fails at runtime.
-We work around this by matching their parent `(const)` node with a text regex:
+The grammar uses "supertype" nodes that exist in the tree but behave
+inconsistently in queries.  Some compile but fail at runtime; others work
+fine in one grammar but not the other.
+
+**Unqueryable supertypes:** `bool`, `unit`, and `null` inside `const` nodes
+compile as queries but fail at runtime.  We match their parent `(const)` with
+a text regex instead:
 
 ```elisp
 (((const) @font-lock-constant-face
   (:match "^\\(true\\|false\\|()\\|null\\)$"
           @font-lock-constant-face)))
 ```
+
+**Queryable supertypes:** `(_type)` matches all type annotation nodes
+(`simple_type`, `generic_type`, `type_argument`, `postfix_type`,
+`function_type`, etc.) and works at runtime in the `fsharp` grammar.  We use
+it as a catch-all for type highlighting:
+
+```elisp
+(_type) @font-lock-type-face
+```
+
+However, `(_type)` fails at runtime in the `fsharp_signature` grammar, so the
+shared rules use individual patterns (`simple_type`, `function_type`) instead.
 
 ## Font-lock levels
 
