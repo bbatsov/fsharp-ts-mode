@@ -224,6 +224,17 @@ file's position in the `.fsproj`:
 | `fsharp-ts-eglot-fsproj-add-file`      | Add current file to the project          |
 | `fsharp-ts-eglot-fsproj-remove-file`   | Remove current file from the project     |
 
+#### Eldoc integration
+
+When `fsharp-ts-eglot` is loaded, the echo area shows F#-specific type
+signatures for the symbol at point (via `fsharp/signature`), providing richer
+information than the standard LSP hover.
+
+#### Project name in mode-line
+
+The mode-line shows `F#[ProjectName]` when the buffer belongs to a `.fsproj`
+project. Disable with `(setq fsharp-ts-show-project-name nil)`.
+
 ### F# Interactive (REPL)
 
 `fsharp-ts-repl.el` provides integration with `dotnet fsi`. The REPL buffer
@@ -276,7 +287,9 @@ Both commands accept a prefix argument to shift by multiple levels (e.g.,
 
 | Key       | Command                       | Description                              |
 |-----------|-------------------------------|------------------------------------------|
-| `C-c C-d` | `fsharp-ts-mode-doc-at-point` | Look up symbol at point in .NET API docs |
+| Key       | Command                                | Description                              |
+|-----------|----------------------------------------|------------------------------------------|
+| `C-c C-d` | `fsharp-ts-mode-doc-at-point`         | Look up symbol at point in .NET API docs |
 
 This opens the [Microsoft .NET API reference](https://learn.microsoft.com/en-us/dotnet/api/)
 with a search for the identifier at point. Works for any .NET type or function,
@@ -284,6 +297,10 @@ not just FSharp.Core.
 
 `M-x fsharp-ts-mode-browse-fsharp-docs` opens the [F# documentation](https://fsharp.org/docs/)
 home page.
+
+`M-x fsharp-ts-mode-search-by-signature` searches the
+[FSDN](https://fsdn.azurewebsites.net/) database by type signature -- useful
+for finding functions when you know the type you need (e.g., `string -> int`).
 
 ### dotnet CLI Integration
 
@@ -306,6 +323,7 @@ All keybindings use the `C-c C-d` prefix:
 | `C-c C-d c`   | `fsharp-ts-dotnet-clean`            | Clean build output      |
 | `C-c C-d R`   | `fsharp-ts-dotnet-restore`          | Restore NuGet packages  |
 | `C-c C-d f`   | `fsharp-ts-dotnet-format`           | Format code             |
+| `C-c C-d n`   | `fsharp-ts-dotnet-new`              | New project from template|
 | `C-c C-d d`   | `fsharp-ts-dotnet-command`          | Run arbitrary command   |
 | `C-c C-d p`   | `fsharp-ts-dotnet-find-project-file`| Find nearest `.fsproj`  |
 | `C-c C-d s`   | `fsharp-ts-dotnet-find-solution-file`| Find nearest `.sln`    |

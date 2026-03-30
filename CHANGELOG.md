@@ -19,6 +19,15 @@
 - Font-lock: dot-expression highlighting -- module/type parts in base position get
   type-face, field accesses get property-face, and function calls through dot
   expressions (e.g., `System.String.Join`) get function-call-face.
+- Eldoc integration: show F#-specific type signatures in the echo area via
+  `fsharp/signature` endpoint when eglot is active.
+- Unnecessary parentheses analyzer toggle (`fsharp-ts-eglot-unnecessary-parens-analyzer`).
+- `dotnet new` command (`C-c C-d n`) with completing-read over available F#
+  templates. Template list is cached; `C-u` refreshes.
+- Project name in mode-line (`F#[ProjectName]`), toggleable via
+  `fsharp-ts-show-project-name`.
+- Auto-continue `///` doc comments and `//` comments on newline.
+- FSDN search by type signature (`fsharp-ts-mode-search-by-signature`).
 - Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.
 

@@ -156,20 +156,18 @@ Call with prefix arg to refresh the cache."
 (defun fsharp-ts-dotnet-new (template &optional name output)
   "Create a new F# project from TEMPLATE.
 Prompts with completion over available templates filtered to F#.
-Optional NAME and OUTPUT directory can be specified with prefix arg.
-With \\[universal-argument] \\[universal-argument], also refresh the template cache."
+With prefix argument, refresh the template cache before prompting."
   (interactive
-   (let* ((templates (if (equal current-prefix-arg '(16))
+   (let* ((templates (if current-prefix-arg
                          (progn
                            (setq fsharp-ts-dotnet--template-cache nil)
                            (fsharp-ts-dotnet--templates))
                        (fsharp-ts-dotnet--templates)))
-          (template (completing-read "Template: " templates nil t)))
-     (if current-prefix-arg
-         (list template
-               (read-string "Project name: ")
-               (read-directory-name "Output directory: "))
-       (list template nil nil))))
+          (template (completing-read "Template: " templates nil t))
+          (name (read-string "Project name (empty for default): ")))
+     (list template
+           (if (string-empty-p name) nil name)
+           nil)))
   (let* ((default-directory (or output default-directory))
          (args (list "new" template "--language" "F#"))
          (args (if (and name (not (string-empty-p name)))
