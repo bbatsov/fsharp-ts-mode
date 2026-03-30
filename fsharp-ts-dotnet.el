@@ -134,22 +134,36 @@ With prefix argument, run `dotnet watch run'."
 (defvar fsharp-ts-dotnet--command-history nil
   "History for `fsharp-ts-dotnet-command'.")
 
+(defvar fsharp-ts-dotnet--template-cache nil
+  "Cached list of F# dotnet new templates.")
+
+(defun fsharp-ts-dotnet--templates ()
+  "Return a list of available F# templates, with caching.
+Call with prefix arg to refresh the cache."
+  (or fsharp-ts-dotnet--template-cache
+      (let* ((output (shell-command-to-string
+                      (format "%s new list --language F# --columns template,short-name"
+                              (shell-quote-argument fsharp-ts-dotnet-program))))
+             (lines (cdr (split-string output "\n" t "[ \t]+")))
+             (templates (delq nil
+                              (mapcar (lambda (line)
+                                        (when (string-match "^\\(.+?\\)  +\\([^ ]+\\)" line)
+                                          (match-string 2 line)))
+                                      lines))))
+        (setq fsharp-ts-dotnet--template-cache templates))))
+
 ;;;###autoload
 (defun fsharp-ts-dotnet-new (template &optional name output)
   "Create a new F# project from TEMPLATE.
 Prompts with completion over available templates filtered to F#.
-Optional NAME and OUTPUT directory can be specified with prefix arg."
+Optional NAME and OUTPUT directory can be specified with prefix arg.
+With \\[universal-argument] \\[universal-argument], also refresh the template cache."
   (interactive
-   (let* ((output (shell-command-to-string
-                   (format "%s new list --language F# --columns template,short-name"
-                           (shell-quote-argument fsharp-ts-dotnet-program))))
-          (lines (cdr (split-string output "\n" t "[ \t]+")))
-          ;; Parse lines: "Template Name    short-name"
-          (templates (delq nil
-                          (mapcar (lambda (line)
-                                    (when (string-match "^\\(.+?\\)  +\\([^ ]+\\)" line)
-                                      (match-string 2 line)))
-                                  lines)))
+   (let* ((templates (if (equal current-prefix-arg '(16))
+                         (progn
+                           (setq fsharp-ts-dotnet--template-cache nil)
+                           (fsharp-ts-dotnet--templates))
+                       (fsharp-ts-dotnet--templates)))
           (template (completing-read "Template: " templates nil t)))
      (if current-prefix-arg
          (list template

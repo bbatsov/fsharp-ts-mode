@@ -854,6 +854,15 @@ The information is also copied to the kill ring."
   (interactive)
   (browse-url fsharp-ts-mode-fsharp-docs-url))
 
+(defun fsharp-ts-mode-search-by-signature (signature)
+  "Search for F# functions matching SIGNATURE on fsdn.azurewebsites.net.
+For example, searching \"string -> int\" finds functions that take a
+string and return an int."
+  (interactive "sSearch by type signature: ")
+  (browse-url
+   (format "https://fsdn.azurewebsites.net/api/search?query=%s"
+           (url-hexify-string signature))))
+
 (defun fsharp-ts-mode-doc-at-point ()
   "Look up the identifier at point in the .NET API documentation."
   (interactive)

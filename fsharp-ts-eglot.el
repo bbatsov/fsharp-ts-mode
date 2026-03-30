@@ -290,6 +290,22 @@ Falls back to a .NET API search if the LSP server doesn't provide a URL."
     (when result
       (message "Documentation comment generated"))))
 
+;;;; Eldoc integration
+
+(defun fsharp-ts-eglot-eldoc-function (callback &rest _)
+  "Eldoc function using FsAutoComplete's fsharp/signature endpoint.
+CALLBACK is called with the signature string when available.
+This provides richer type information than the standard LSP hover."
+  (when-let* ((server (eglot-current-server)))
+    (condition-case nil
+        (let* ((params (eglot--TextDocumentPositionParams))
+               (result (jsonrpc-request server :fsharp/signature params
+                                        :timeout 0.5)))
+          (when (and result (stringp result) (not (string-empty-p result)))
+            (funcall callback result)))
+      (error nil)))
+  nil)
+
 ;;;; .fsproj manipulation
 
 (defun fsharp-ts-eglot--fsproj-for-current-file ()
@@ -366,6 +382,15 @@ Ensures the server is installed before returning the command."
 (add-to-list 'eglot-server-programs
              '((fsharp-ts-mode fsharp-ts-signature-mode) .
                (fsharp-ts-eglot-server . fsharp-ts-eglot--server-contact)))
+
+;; Register F#-specific eldoc when eglot connects
+(defun fsharp-ts-eglot--setup-eldoc ()
+  "Add F#-specific eldoc function when eglot is active."
+  (when (eglot-current-server)
+    (add-hook 'eldoc-documentation-functions
+              #'fsharp-ts-eglot-eldoc-function nil t)))
+
+(add-hook 'eglot-managed-mode-hook #'fsharp-ts-eglot--setup-eldoc)
 
 (provide 'fsharp-ts-eglot)
 
