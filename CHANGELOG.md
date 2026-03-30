@@ -13,7 +13,21 @@
 - Font-lock: highlight wildcard pattern `_`, CE builder names (`async`, `task`, etc.),
   preprocessor directives (`#if`/`#else`/`#endif`), pipe-left `<|` function target,
   and anonymous record brackets `{|`/`|}`.
+- Font-lock: comprehensive type annotation highlighting via `(_type)` catch-all --
+  covers generic types (`IComparer<'T>`), type arguments (`'T`, `'Key`), postfix
+  types (`'T array`), and all other type syntax.
+- Font-lock: dot-expression highlighting -- module/type parts in base position get
+  type-face, field accesses get property-face, and function calls through dot
+  expressions (e.g., `System.String.Join`) get function-call-face.
+- Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.
+
+### Bug fixes
+
+- Fix inconsistent font-lock on qualified paths (e.g.,
+  `Microsoft.FSharp.Primitives.Basics.Array.subUnchecked` no longer alternates
+  faces). Removed the `^[A-Z]` heuristic for DU constructors in expressions
+  which caused false positives.
 
 ## 0.1.0 (2026-03-27)
 
