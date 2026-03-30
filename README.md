@@ -224,6 +224,26 @@ file's position in the `.fsproj`:
 | `fsharp-ts-eglot-fsproj-add-file`      | Add current file to the project          |
 | `fsharp-ts-eglot-fsproj-remove-file`   | Remove current file from the project     |
 
+#### Documentation info panel
+
+`fsharp-ts-info.el` provides a persistent documentation panel that shows
+rich type information for the symbol at point -- signature, documentation
+comment, constructors, interfaces, fields, functions, and attributes.
+
+```emacs-lisp
+(require 'fsharp-ts-info)
+
+;; Show documentation for symbol at point (opens side window)
+M-x fsharp-ts-info-show
+
+;; Auto-update the panel as you navigate code
+M-x fsharp-ts-info-mode
+```
+
+The panel updates automatically after `fsharp-ts-info-idle-delay` seconds
+(default 0.5) of idle time when `fsharp-ts-info-mode` is active and the
+panel window is visible. Requires an active eglot connection.
+
 #### Eldoc integration
 
 When `fsharp-ts-eglot` is loaded, the echo area shows F#-specific type
