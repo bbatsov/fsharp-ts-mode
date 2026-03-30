@@ -1,6 +1,8 @@
 # fsharp-ts-mode
 
 [![CI](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml/badge.svg)](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml)
+[![MELPA](https://melpa.org/packages/fsharp-ts-mode-badge.svg)](https://melpa.org/#/fsharp-ts-mode)
+[![MELPA Stable](https://stable.melpa.org/packages/fsharp-ts-mode-badge.svg)](https://stable.melpa.org/#/fsharp-ts-mode)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red?logo=github)](https://github.com/sponsors/bbatsov)
 
 A tree-sitter-based Emacs major mode for [F#](https://fsharp.org) development.
@@ -9,13 +11,25 @@ A tree-sitter-based Emacs major mode for [F#](https://fsharp.org) development.
 
 ## Installation
 
-### package-vc (Emacs 30+)
+### MELPA
 
-```emacs-lisp
-(package-vc-install "https://github.com/bbatsov/fsharp-ts-mode")
+The package is available on [MELPA](https://melpa.org/#/fsharp-ts-mode)
+and [MELPA Stable](https://stable.melpa.org/#/fsharp-ts-mode).
+
+```
+M-x package-install RET fsharp-ts-mode RET
 ```
 
-### use-package with package-vc (Emacs 30+)
+Or with `use-package`:
+
+```emacs-lisp
+(use-package fsharp-ts-mode
+  :ensure t)
+```
+
+### package-vc (Emacs 30+)
+
+To install the development version directly from GitHub:
 
 ```emacs-lisp
 (use-package fsharp-ts-mode
@@ -384,7 +398,7 @@ registration wins.
 
 ;; Replace with:
 (use-package fsharp-ts-mode
-  :vc (:url "https://github.com/bbatsov/fsharp-ts-mode" :rev :newest))
+  :ensure t)
 ```
 
 ## Background
