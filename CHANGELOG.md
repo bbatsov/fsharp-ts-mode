@@ -27,6 +27,10 @@
 - Project name in mode-line (`F#[ProjectName]`), toggleable via
   `fsharp-ts-show-project-name`.
 - Auto-continue `///` doc comments and `//` comments on newline.
+- REPL: send project references (`C-c C-p`) resolves `#r`/`#load` directives
+  from the nearest `.fsproj`. Uses FSAC via eglot when available, falls back to
+  `dotnet msbuild`. Also `fsharp-ts-repl-generate-references-file` for
+  inspection.
 - FSDN search by type signature (`fsharp-ts-mode-search-by-signature`).
 - Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.

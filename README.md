@@ -255,11 +255,19 @@ From a source buffer with `fsharp-ts-repl-minor-mode` active:
 | `C-c C-r` | `fsharp-ts-repl-send-region`    | Send region                    |
 | `C-c C-b` | `fsharp-ts-repl-send-buffer`    | Send entire buffer             |
 | `C-c C-l` | `fsharp-ts-repl-load-file`      | Load file via `#load` directive|
+| `C-c C-p` | `fsharp-ts-repl-send-project-references` | Send project references to REPL |
 | `C-c C-i` | `fsharp-ts-repl-interrupt`      | Interrupt the REPL process     |
 | `C-c C-k` | `fsharp-ts-repl-clear-buffer`   | Clear the REPL buffer          |
 
 The `;;` expression terminator is appended automatically when missing. Input
 history is persisted across sessions.
+
+**Project references**: `C-c C-p` resolves assembly references and source files
+from the nearest `.fsproj` and sends `#r`/`#load` directives to FSI, making
+project types available in the REPL. Uses FsAutoComplete via eglot when
+available (instant), falls back to `dotnet msbuild` (standalone).
+`M-x fsharp-ts-repl-generate-references-file` writes the directives to a buffer
+for inspection instead.
 
 ```emacs-lisp
 ;; Customize the REPL command (default: "dotnet" with args "fsi" "--readline-")
