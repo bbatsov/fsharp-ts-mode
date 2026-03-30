@@ -31,6 +31,10 @@
   from the nearest `.fsproj`. Uses FSAC via eglot when available, falls back to
   `dotnet msbuild`. Also `fsharp-ts-repl-generate-references-file` for
   inspection.
+- Documentation info panel (`fsharp-ts-info.el`): persistent side window showing
+  rich type documentation (signature, comments, constructors, interfaces, fields,
+  functions, attributes) for the symbol at point. Auto-updates via
+  `fsharp-ts-info-mode`. Uses `fsharp/documentation` FSAC endpoint.
 - FSDN search by type signature (`fsharp-ts-mode-search-by-signature`).
 - Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.
