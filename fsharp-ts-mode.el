@@ -875,6 +875,12 @@ Intended for use in `find-file-hook'."
 (defun fsharp-ts--setup-mode (language)
   "Common tree-sitter mode setup for LANGUAGE.
 LANGUAGE should be `fsharp' or `fsharp-signature'."
+  ;; Offer to install missing grammars
+  (when-let* ((missing (seq-filter (lambda (r) (not (treesit-language-available-p (car r))))
+                                   fsharp-ts-mode-grammar-recipes)))
+    (when (y-or-n-p "F# tree-sitter grammars are not installed.  Install them now?")
+      (fsharp-ts-mode-install-grammars)))
+
   (when (treesit-ready-p language)
     (let ((parser (treesit-parser-create language)))
       (when (boundp 'treesit-primary-parser)
