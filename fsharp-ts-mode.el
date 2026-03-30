@@ -257,9 +257,7 @@ The return value is suitable for `treesit-font-lock-settings'."
    `((union_type_case (identifier) @font-lock-constant-face)
      (named_module name: (_) @font-lock-type-face)
      (import_decl (long_identifier) @font-lock-type-face)
-     ((long_identifier_or_op
-       (long_identifier (identifier) @font-lock-constant-face))
-      (:match "^[A-Z]" @font-lock-constant-face)))
+)
 
    :language 'fsharp
    :feature 'attribute

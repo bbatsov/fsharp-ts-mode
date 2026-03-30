@@ -131,6 +131,15 @@
 
     (when-fontifying-it "highlights preprocessor directives"
       ("#if DEBUG\nlet y = 2\n#endif\n"
-       ("#if" font-lock-preprocessor-face)))))
+       ("#if" font-lock-preprocessor-face)))
+
+    (when-fontifying-it "highlights qualified path identifiers consistently"
+      ("let left =\n    Microsoft.FSharp.Primitives.Basics.Array.subUnchecked 0 array.Length array\n"
+       ("Microsoft" font-lock-variable-use-face)
+       ("FSharp" font-lock-variable-use-face)
+       ("Primitives" font-lock-variable-use-face)
+       ("Basics" font-lock-variable-use-face)
+       ("Array" font-lock-variable-use-face)
+       ("subUnchecked" font-lock-variable-use-face)))))
 
 ;;; fsharp-ts-mode-font-lock-test.el ends here
