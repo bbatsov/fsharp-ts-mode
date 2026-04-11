@@ -92,7 +92,29 @@
                       (and (consp (car entry))
                            (memq 'fsharp-ts-signature-mode (car entry))))
                     eglot-server-programs)))
-        (expect found :not :to-be nil))))
+        (expect found :not :to-be nil)))
+
+    (it "contact function is callable the way eglot calls it"
+      ;; Regression: `eglot-server-programs' uses the `(CLASS . FN)' form,
+      ;; which causes `eglot--connect' to invoke FN with zero arguments.
+      ;; A signature mismatch means `M-x eglot' errors out with "Wrong
+      ;; number of arguments" before ever connecting.
+      (let* ((fsharp-ts-eglot-auto-install nil)
+             (entry (cl-find-if
+                     (lambda (e)
+                       (and (consp (car e))
+                            (memq 'fsharp-ts-mode (car e))))
+                     eglot-server-programs))
+             (contact (cdr entry))
+             ;; Strip the CLASS the way `eglot--guess-contact' does.
+             (fn (if (and (consp contact) (symbolp (car contact)))
+                     (cdr contact)
+                   contact)))
+        (expect (functionp fn) :to-be t)
+        ;; Mirror the `(funcall contact)' call inside `eglot--connect'.
+        (let ((result (funcall fn)))
+          (expect (listp result) :to-be t)
+          (expect (stringp (car result)) :to-be t)))))
 
   (describe "defcustom defaults"
     (it "has auto-install enabled by default"
