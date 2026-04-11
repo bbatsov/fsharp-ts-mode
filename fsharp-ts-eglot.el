@@ -373,7 +373,7 @@ This provides richer type information than the standard LSP hover."
 
 ;;;; Registration
 
-(defun fsharp-ts-eglot--server-contact (_interactive)
+(defun fsharp-ts-eglot--server-contact ()
   "Return the server contact for FsAutoComplete.
 Ensures the server is installed before returning the command."
   (fsharp-ts-eglot--ensure-server)
