@@ -41,7 +41,7 @@
 
 (defun fsharp-ts-lens--file-uri (file)
   "Return a file URI for FILE.
-Uses `fsharp-ts-lens--file-uri' when available (Emacs 30+), otherwise
+Uses `eglot-path-to-uri' when available (Emacs 30+), otherwise
 constructs the URI directly."
   (if (fboundp 'eglot-path-to-uri)
       (eglot-path-to-uri file)

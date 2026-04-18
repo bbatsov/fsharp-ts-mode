@@ -350,8 +350,6 @@ Both commands accept a prefix argument to shift by multiple levels (e.g.,
 
 ### Documentation Lookup
 
-| Key       | Command                       | Description                              |
-|-----------|-------------------------------|------------------------------------------|
 | Key       | Command                                | Description                              |
 |-----------|----------------------------------------|------------------------------------------|
 | `C-c C-d` | `fsharp-ts-mode-doc-at-point`         | Look up symbol at point in .NET API docs |
