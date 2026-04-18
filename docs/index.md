@@ -3,6 +3,7 @@
 [![MELPA](https://melpa.org/packages/fsharp-ts-mode-badge.svg)](https://melpa.org/#/fsharp-ts-mode)
 [![MELPA Stable](https://stable.melpa.org/packages/fsharp-ts-mode-badge.svg)](https://stable.melpa.org/#/fsharp-ts-mode)
 [![CI](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml/badge.svg)](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/ci.yml)
+[![Docs](https://github.com/bbatsov/fsharp-ts-mode/actions/workflows/docs.yml/badge.svg)](https://bbatsov.github.io/fsharp-ts-mode)
 
 A tree-sitter-based Emacs major mode for [F#](https://fsharp.org), a
 functional-first programming language running on .NET.
