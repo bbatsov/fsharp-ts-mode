@@ -189,11 +189,13 @@ The return value is suitable for `treesit-font-lock-settings'."
    (treesit-font-lock-rules
     :language language
     :feature 'comment
-    '(;; Doc comments start with ///
-      ((line_comment) @font-lock-doc-face
-       (:match "^///" @font-lock-doc-face))
-      (line_comment) @font-lock-comment-face
-      (block_comment) @font-lock-comment-face)
+    ;; Use a string query so #match? reaches tree-sitter verbatim.
+    ;; Emacs 30.2 and earlier translate the sexp :match form to #match
+    ;; (without ?), which some tree-sitter library builds reject.
+    "((line_comment) @font-lock-doc-face
+      (#match? @font-lock-doc-face \"^///\"))
+     (line_comment) @font-lock-comment-face
+     (block_comment) @font-lock-comment-face"
 
     :language language
     :feature 'string
