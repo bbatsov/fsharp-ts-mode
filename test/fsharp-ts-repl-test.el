@@ -119,6 +119,12 @@
             (expect (looking-at-p "let b") :to-be-truthy)
             (expect (length sent) :to-equal 1))))))
 
+  (describe "clear-buffer"
+    (it "signals a user-error when no REPL is running for the project"
+      (cl-letf (((symbol-function 'fsharp-ts-repl--project-id) (lambda () "NoRepl")))
+        (with-temp-buffer
+          (expect (fsharp-ts-repl-clear-buffer) :to-throw 'user-error)))))
+
   (describe "NuGet reference helper"
     (it "sends a #r nuget directive"
       (let (sent)

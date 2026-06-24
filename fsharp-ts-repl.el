@@ -310,8 +310,9 @@ Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
     (cond
      ;; A REPL with a different toplevel is running; offer to restart it with
      ;; the requested flavor (this is how a changed `fsharp-ts-repl-flavor'
-     ;; takes effect).
-     ((and running (not (eq running-flavor fsharp-ts-repl-flavor))
+     ;; takes effect).  Only prompt when we actually know the running flavor.
+     ((and running running-flavor
+           (not (eq running-flavor fsharp-ts-repl-flavor))
            (y-or-n-p (format "An existing %s REPL is running for this project; \
 restart it as %s? " running-flavor fsharp-ts-repl-flavor)))
       (fsharp-ts-repl--kill bufname)
@@ -546,10 +547,13 @@ via `dotnet msbuild'."
 (defun fsharp-ts-repl-clear-buffer ()
   "Clear the F# REPL buffer for the current context."
   (interactive)
-  (with-current-buffer (fsharp-ts-repl--buffer)
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (comint-send-input))))
+  (let ((bufname (fsharp-ts-repl--buffer)))
+    (if (comint-check-proc bufname)
+        (with-current-buffer bufname
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (comint-send-input)))
+      (user-error "No F# REPL is running for this project"))))
 
 (defun fsharp-ts-repl-interrupt ()
   "Interrupt the F# REPL process for the current context."
