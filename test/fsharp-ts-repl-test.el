@@ -76,6 +76,33 @@
     (it "filters out netstandard"
       (expect fsharp-ts-repl--excluded-references :to-contain "netstandard")))
 
+  (describe "per-project REPL buffers"
+    (it "uses the base name outside any project"
+      (cl-letf (((symbol-function 'fsharp-ts-repl--project-id) (lambda () nil)))
+        (expect (fsharp-ts-repl--buffer) :to-equal fsharp-ts-repl-buffer-name)))
+
+    (it "derives a per-project name from the project id"
+      (cl-letf (((symbol-function 'fsharp-ts-repl--project-id) (lambda () "MyApp")))
+        (let ((fsharp-ts-repl-buffer-name "*F# Interactive*"))
+          (expect (fsharp-ts-repl--buffer) :to-equal "*F# Interactive: MyApp*"))))
+
+    (it "keeps the result asterisk-wrapped even without a trailing asterisk"
+      (cl-letf (((symbol-function 'fsharp-ts-repl--project-id) (lambda () "MyApp")))
+        (let ((fsharp-ts-repl-buffer-name "F# Interactive"))
+          (expect (fsharp-ts-repl--buffer) :to-equal "F# Interactive: MyApp*")))))
+
+  (describe "REPL flavor"
+    (it "uses the configured program for the dotnet flavor"
+      (let ((fsharp-ts-repl-flavor 'dotnet)
+            (fsharp-ts-repl-program-name "dotnet")
+            (fsharp-ts-repl-program-args '("fsi" "--readline-")))
+        (expect (fsharp-ts-repl--command)
+                :to-equal '("dotnet" "fsi" "--readline-"))))
+
+    (it "uses fsharpi for the fsharpi flavor"
+      (let ((fsharp-ts-repl-flavor 'fsharpi))
+        (expect (fsharp-ts-repl--command) :to-equal '("fsharpi")))))
+
   (describe "msbuild JSON parsing"
     (it "parses items from JSON output"
       (cl-letf (((symbol-function 'shell-command-to-string)

@@ -64,8 +64,22 @@ If you have a standalone `dotnet-fsi' or `fsi' binary, set
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
 (defcustom fsharp-ts-repl-buffer-name "*F# Interactive*"
-  "Name of the F# Interactive REPL buffer."
+  "Base name of the F# Interactive REPL buffer.
+Per-project REPLs derive their name from this (e.g. \"*F# Interactive: proj*\")."
   :type 'string
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
+(defcustom fsharp-ts-repl-flavor 'dotnet
+  "Which F# Interactive `fsharp-ts-repl' launches.
+- `dotnet': the modern .NET F# Interactive, using `fsharp-ts-repl-program-name'
+  and `fsharp-ts-repl-program-args' (the default `dotnet fsi --readline-').
+- `fsharpi': the standalone `fsharpi'/`fsi' toplevel (Mono and legacy installs).
+
+Set this globally or per project via a `.dir-locals.el' file; the REPL reads
+it when it starts."
+  :type '(choice (const :tag "dotnet fsi" dotnet)
+                 (const :tag "fsharpi" fsharpi))
+  :safe (lambda (v) (memq v '(dotnet fsharpi)))
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
 (defcustom fsharp-ts-repl-history-file
@@ -104,12 +118,97 @@ The default `dotnet fsi' prompt is \"> \".")
   "Source buffer from which the REPL was last invoked.
 Used by `fsharp-ts-repl-switch-to-source' to return to the source buffer.")
 
+;;;; Per-project REPL buffers
+;;
+;; Each project gets its own dedicated REPL, so source files send to the
+;; toplevel for their project.  The buffer name is derived from
+;; `fsharp-ts-repl-buffer-name' plus the project identifier; buffers outside
+;; any project share the base name.
+
+(defun fsharp-ts-repl--project-id ()
+  "Return a short identifier for the current buffer's project, or nil.
+Uses `project.el' when available, falling back to the directory that
+contains an F# solution or project file."
+  (when-let* ((root (or (and (fboundp 'project-current)
+                             (when-let* ((proj (project-current)))
+                               (project-root proj)))
+                        (locate-dominating-file
+                         default-directory
+                         (lambda (d)
+                           (directory-files d nil "\\.\\(slnx?\\|fsproj\\)\\'" t))))))
+    (file-name-nondirectory (directory-file-name root))))
+
+(defun fsharp-ts-repl--buffer ()
+  "Return the name of the REPL buffer for the current context.
+In a REPL buffer, that is the buffer itself.  In a source buffer, it is
+the per-project REPL derived from `fsharp-ts-repl-buffer-name' and the
+project identifier (or the base name when there is no project)."
+  (cond
+   ((derived-mode-p 'fsharp-ts-repl-mode) (buffer-name))
+   ((fsharp-ts-repl--project-id)
+    (let ((base (if (string-suffix-p "*" fsharp-ts-repl-buffer-name)
+                    (substring fsharp-ts-repl-buffer-name 0 -1)
+                  fsharp-ts-repl-buffer-name)))
+      (format "%s: %s*" base (fsharp-ts-repl--project-id))))
+   (t fsharp-ts-repl-buffer-name)))
+
+(defvar-local fsharp-ts-repl--flavor nil
+  "The flavor (toplevel kind) of this REPL buffer.
+One of the symbols accepted by `fsharp-ts-repl-flavor'.")
+
+(defvar-local fsharp-ts-repl--command-line nil
+  "The (PROGRAM . ARGS) this REPL buffer was started with.
+Recorded so `fsharp-ts-repl-restart' can relaunch the same toplevel.")
+
+(defun fsharp-ts-repl--command ()
+  "Return (PROGRAM . ARGS) for the current `fsharp-ts-repl-flavor'.
+The `dotnet' flavor uses `fsharp-ts-repl-program-name' and
+`fsharp-ts-repl-program-args'; `fsharpi' uses the standalone toplevel."
+  (pcase fsharp-ts-repl-flavor
+    ('fsharpi (cons "fsharpi" nil))
+    (_ (cons fsharp-ts-repl-program-name fsharp-ts-repl-program-args))))
+
+(defun fsharp-ts-repl--start-command (bufname command flavor)
+  "Start a REPL in BUFNAME running COMMAND for FLAVOR, and return the buffer.
+COMMAND is a (PROGRAM . ARGS) pair.  Records FLAVOR and COMMAND
+buffer-locally so the REPL can be restarted as the same toplevel."
+  (let ((buffer (apply #'make-comint-in-buffer "F# Interactive" bufname
+                       (car command) nil (cdr command))))
+    (with-current-buffer buffer
+      (fsharp-ts-repl-mode)
+      (setq fsharp-ts-repl--flavor flavor)
+      (setq fsharp-ts-repl--command-line command)
+      (setq mode-name (format "F#-REPL[%s]" flavor)))
+    buffer))
+
+(defun fsharp-ts-repl--kill (bufname)
+  "Kill the REPL process running in BUFNAME, if any."
+  (when (comint-check-proc bufname)
+    (let ((proc (get-buffer-process bufname)))
+      (when proc
+        (set-process-query-on-exit-flag proc nil)
+        (delete-process proc)))))
+
 ;;;; REPL mode
 
 (defvar fsharp-ts-repl-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map comint-mode-map)
     (define-key map (kbd "C-c C-z") #'fsharp-ts-repl-switch-to-source)
+    (easy-menu-define fsharp-ts-repl-mode-menu map "F# REPL Menu"
+      '("F# REPL"
+        ["Switch to Source" fsharp-ts-repl-switch-to-source
+         :help "Switch back to the source buffer that last invoked the REPL"]
+        "--"
+        ["Interrupt" fsharp-ts-repl-interrupt
+         :help "Interrupt the F# Interactive process"]
+        ["Restart" fsharp-ts-repl-restart
+         :help "Kill and restart F# Interactive"]
+        ["Clear Buffer" fsharp-ts-repl-clear-buffer
+         :help "Erase the REPL buffer contents"]
+        "--"
+        ["Customize F# REPL..." (customize-group 'fsharp-ts-repl)
+         :help "Customize the F# REPL settings"]))
     map)
   "Keymap for `fsharp-ts-repl-mode'.")
 
@@ -178,18 +277,15 @@ from `;;' inside strings."
 
 ;;;###autoload
 (defun fsharp-ts-repl-start ()
-  "Start an F# Interactive process in a new buffer.
-If a process is already running, switch to its buffer."
+  "Start an F# Interactive process for the current buffer's project.
+If a REPL for the project is already running, switch to its buffer."
   (interactive)
-  (if (comint-check-proc fsharp-ts-repl-buffer-name)
-      (pop-to-buffer fsharp-ts-repl-buffer-name)
-    (let* ((cmdlist (cons fsharp-ts-repl-program-name fsharp-ts-repl-program-args))
-           (buffer (apply #'make-comint-in-buffer "F# Interactive"
-                          fsharp-ts-repl-buffer-name
-                          (car cmdlist) nil (cdr cmdlist))))
-      (with-current-buffer buffer
-        (fsharp-ts-repl-mode))
-      (pop-to-buffer buffer))))
+  (let ((bufname (fsharp-ts-repl--buffer)))
+    (if (comint-check-proc bufname)
+        (pop-to-buffer bufname)
+      (pop-to-buffer
+       (fsharp-ts-repl--start-command bufname (fsharp-ts-repl--command)
+                                      fsharp-ts-repl-flavor)))))
 
 (defun fsharp-ts-repl-switch-to-source ()
   "Switch from the REPL back to the source buffer that last invoked it."
@@ -205,21 +301,35 @@ If a process is already running, switch to its buffer."
 If a REPL is already running, switch to it; otherwise start a new one.
 Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
   (interactive)
-  (let ((source (current-buffer)))
-    (if (comint-check-proc fsharp-ts-repl-buffer-name)
-        (pop-to-buffer fsharp-ts-repl-buffer-name)
+  (let* ((source (current-buffer))
+         (bufname (fsharp-ts-repl--buffer))
+         (running (comint-check-proc bufname))
+         (running-flavor (and running
+                              (buffer-local-value 'fsharp-ts-repl--flavor
+                                                  (get-buffer bufname)))))
+    (cond
+     ;; A REPL with a different toplevel is running; offer to restart it with
+     ;; the requested flavor (this is how a changed `fsharp-ts-repl-flavor'
+     ;; takes effect).
+     ((and running (not (eq running-flavor fsharp-ts-repl-flavor))
+           (y-or-n-p (format "An existing %s REPL is running for this project; \
+restart it as %s? " running-flavor fsharp-ts-repl-flavor)))
+      (fsharp-ts-repl--kill bufname)
       (fsharp-ts-repl-start))
-    (setq fsharp-ts-repl--source-buffer source)))
+     (running (pop-to-buffer bufname))
+     (t (fsharp-ts-repl-start)))
+    (with-current-buffer bufname
+      (setq fsharp-ts-repl--source-buffer source))))
 
 ;;;; Sending code
 
 (defun fsharp-ts-repl--process ()
-  "Return the REPL process, or nil if not running."
-  (get-buffer-process fsharp-ts-repl-buffer-name))
+  "Return the REPL process for the current context, or nil if not running."
+  (get-buffer-process (fsharp-ts-repl--buffer)))
 
 (defun fsharp-ts-repl--ensure-running ()
-  "Start an F# REPL if one is not already running."
-  (unless (comint-check-proc fsharp-ts-repl-buffer-name)
+  "Start an F# REPL for the current buffer's project if one is not running."
+  (unless (comint-check-proc (fsharp-ts-repl--buffer))
     (save-window-excursion
       (fsharp-ts-repl-start))))
 
@@ -408,18 +518,33 @@ via `dotnet msbuild'."
 ;;;; REPL management
 
 (defun fsharp-ts-repl-clear-buffer ()
-  "Clear the F# REPL buffer."
+  "Clear the F# REPL buffer for the current context."
   (interactive)
-  (with-current-buffer fsharp-ts-repl-buffer-name
+  (with-current-buffer (fsharp-ts-repl--buffer)
     (let ((inhibit-read-only t))
       (erase-buffer)
       (comint-send-input))))
 
 (defun fsharp-ts-repl-interrupt ()
-  "Interrupt the F# REPL process."
+  "Interrupt the F# REPL process for the current context."
   (interactive)
-  (when (comint-check-proc fsharp-ts-repl-buffer-name)
+  (when (comint-check-proc (fsharp-ts-repl--buffer))
     (interrupt-process (fsharp-ts-repl--process))))
+
+;;;###autoload
+(defun fsharp-ts-repl-restart ()
+  "Restart F# Interactive for the current buffer's project.
+Kill the running process, if any, and start a fresh one in the same
+buffer, preserving the toplevel flavor it was launched with."
+  (interactive)
+  (let* ((bufname (fsharp-ts-repl--buffer))
+         (buf (get-buffer bufname))
+         (flavor (and buf (buffer-local-value 'fsharp-ts-repl--flavor buf)))
+         (command (and buf (buffer-local-value 'fsharp-ts-repl--command-line buf))))
+    (fsharp-ts-repl--kill bufname)
+    (if (and command flavor)
+        (pop-to-buffer (fsharp-ts-repl--start-command bufname command flavor))
+      (fsharp-ts-repl-start))))
 
 ;;;; Minor mode for source buffers
 
@@ -445,8 +570,11 @@ via `dotnet msbuild'."
         ["Send Project References" fsharp-ts-repl-send-project-references]
         ["Generate References File" fsharp-ts-repl-generate-references-file]
         "--"
-        ["Interrupt REPL" fsharp-ts-repl-interrupt]
-        ["Clear REPL Buffer" fsharp-ts-repl-clear-buffer]))
+        ["Interrupt REPL" fsharp-ts-repl-interrupt
+         :enable (comint-check-proc (fsharp-ts-repl--buffer))]
+        ["Restart REPL" fsharp-ts-repl-restart]
+        ["Clear REPL Buffer" fsharp-ts-repl-clear-buffer
+         :enable (comint-check-proc (fsharp-ts-repl--buffer))]))
     map)
   "Keymap for F# Interactive source buffer integration.")
 

@@ -53,6 +53,12 @@
 - Integrate with `project.el`: a directory containing an F# solution
   (`.sln`/`.slnx`) or project (`.fsproj`) file is recognized as a project root,
   with `bin/` and `obj/` ignored.
+- REPL: each project now gets its own dedicated F# Interactive buffer, so source
+  files send to the toplevel for their project.
+- REPL: choose the toplevel via `fsharp-ts-repl-flavor` (`dotnet` or `fsharpi`).
+- REPL: restart the toplevel with `fsharp-ts-repl-restart`, preserving its
+  flavor. The REPL buffer now has its own menu (switch to source, interrupt,
+  restart, clear).
 
 ### Bug fixes
 
