@@ -11,6 +11,7 @@
 
 (require 'buttercup)
 (require 'fsharp-ts-repl)
+(require 'fsharp-ts-mode-test-helpers)
 
 (describe "fsharp-ts-repl"
   (describe "fsproj detection"
@@ -102,6 +103,32 @@
     (it "uses fsharpi for the fsharpi flavor"
       (let ((fsharp-ts-repl-flavor 'fsharpi))
         (expect (fsharp-ts-repl--command) :to-equal '("fsharpi")))))
+
+  (describe "sending definitions"
+    (before-all
+      (unless (treesit-language-available-p 'fsharp)
+        (signal 'buttercup-pending "fsharp grammar not available")))
+
+    (it "send-definition-and-step advances point to the next definition"
+      (let (sent)
+        (cl-letf (((symbol-function 'fsharp-ts-repl-send-region)
+                   (lambda (start end) (push (cons start end) sent))))
+          (with-fsharp-ts-mode-buffer "let a = 1\nlet b = 2\n"
+            (goto-char (point-min))
+            (fsharp-ts-repl-send-definition-and-step)
+            (expect (looking-at-p "let b") :to-be-truthy)
+            (expect (length sent) :to-equal 1))))))
+
+  (describe "NuGet reference helper"
+    (it "sends a #r nuget directive"
+      (let (sent)
+        (cl-letf (((symbol-function 'fsharp-ts-repl--ensure-running) #'ignore)
+                  ((symbol-function 'fsharp-ts-repl--process) (lambda () 'proc))
+                  ((symbol-function 'fsharp-ts-repl--input-sender)
+                   (lambda (_proc input) (setq sent input))))
+          (with-temp-buffer
+            (fsharp-ts-repl-require "Newtonsoft.Json")
+            (expect sent :to-equal "#r \"nuget: Newtonsoft.Json\""))))))
 
   (describe "msbuild JSON parsing"
     (it "parses items from JSON output"

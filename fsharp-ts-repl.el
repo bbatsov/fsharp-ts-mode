@@ -359,6 +359,22 @@ restart it as %s? " running-flavor fsharp-ts-repl-flavor)))
     (user-error "No definition at point")))
 
 ;;;###autoload
+(defun fsharp-ts-repl-send-definition-and-step ()
+  "Send the current definition to the F# REPL, then move to the next one.
+Like `fsharp-ts-repl-send-definition', but advances point past the end of
+the definition to the start of the following top-level form, so repeated
+invocations walk through the buffer."
+  (interactive)
+  (if-let* ((node (treesit-defun-at-point))
+            (start (treesit-node-start node))
+            (end (treesit-node-end node)))
+      (progn
+        (fsharp-ts-repl-send-region start end)
+        (goto-char end)
+        (skip-chars-forward " \t\n"))
+    (user-error "No definition at point")))
+
+;;;###autoload
 (defun fsharp-ts-repl-load-file (file)
   "Load FILE into the F# REPL via the `#load' directive."
   (interactive (list (buffer-file-name)))
@@ -367,6 +383,16 @@ restart it as %s? " running-flavor fsharp-ts-repl-flavor)))
   (fsharp-ts-repl--ensure-running)
   (fsharp-ts-repl--input-sender (fsharp-ts-repl--process)
                                  (format "#load %S" file)))
+
+;;;###autoload
+(defun fsharp-ts-repl-require (package)
+  "Reference the NuGet PACKAGE in the F# REPL via a `#r \"nuget: ...\"' directive.
+F# Interactive downloads and loads the package on demand (requires the
+.NET SDK's package management support)."
+  (interactive (list (read-string "NuGet package: ")))
+  (fsharp-ts-repl--ensure-running)
+  (fsharp-ts-repl--input-sender (fsharp-ts-repl--process)
+                                 (format "#r \"nuget: %s\"" package)))
 
 ;;;; Project references
 
@@ -552,6 +578,7 @@ buffer, preserving the toplevel flavor it was launched with."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-z") #'fsharp-ts-repl-switch-to-repl)
     (define-key map (kbd "C-c C-c") #'fsharp-ts-repl-send-definition)
+    (define-key map (kbd "C-c C-n") #'fsharp-ts-repl-send-definition-and-step)
     (define-key map (kbd "C-c C-r") #'fsharp-ts-repl-send-region)
     (define-key map (kbd "C-c C-b") #'fsharp-ts-repl-send-buffer)
     (define-key map (kbd "C-c C-l") #'fsharp-ts-repl-load-file)
@@ -564,9 +591,11 @@ buffer, preserving the toplevel flavor it was launched with."
         ["Start/Switch to REPL" fsharp-ts-repl-switch-to-repl]
         "--"
         ["Send Definition" fsharp-ts-repl-send-definition]
+        ["Send Definition and Step" fsharp-ts-repl-send-definition-and-step]
         ["Send Region" fsharp-ts-repl-send-region]
         ["Send Buffer" fsharp-ts-repl-send-buffer]
         ["Load File" fsharp-ts-repl-load-file]
+        ["Reference NuGet Package..." fsharp-ts-repl-require]
         ["Send Project References" fsharp-ts-repl-send-project-references]
         ["Generate References File" fsharp-ts-repl-generate-references-file]
         "--"

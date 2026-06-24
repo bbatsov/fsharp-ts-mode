@@ -59,6 +59,10 @@
 - REPL: restart the toplevel with `fsharp-ts-repl-restart`, preserving its
   flavor. The REPL buffer now has its own menu (switch to source, interrupt,
   restart, clear).
+- REPL: `fsharp-ts-repl-send-definition-and-step` (`C-c C-n`) sends the
+  definition at point and moves to the next one.
+- REPL: `fsharp-ts-repl-require` references a NuGet package via
+  `#r "nuget: ..."`.
 
 ### Bug fixes
 
