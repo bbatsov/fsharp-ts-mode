@@ -136,6 +136,38 @@
                 (expect (buffer-string) :to-equal "let  x=1"))))
         (delete-file fake)))))
 
+(describe "fsharp-ts-mode-project-find"
+  (it "finds the solution directory as the project root"
+    (let* ((root (make-temp-file "fsharp-test" t))
+           (subdir (expand-file-name "src/App" root)))
+      (unwind-protect
+          (progn
+            (make-directory subdir t)
+            (with-temp-file (expand-file-name "App.sln" root) (insert ""))
+            (with-temp-file (expand-file-name "App.fsproj" subdir) (insert ""))
+            (let ((project (fsharp-ts-mode-project-find subdir)))
+              (expect (car project) :to-equal 'fsharp-ts)
+              (expect (project-root project)
+                      :to-equal (file-name-as-directory root))))
+        (delete-directory root t))))
+
+  (it "falls back to the project directory when there is no solution"
+    (let* ((root (make-temp-file "fsharp-test" t))
+           (subdir (expand-file-name "nested" root)))
+      (unwind-protect
+          (progn
+            (make-directory subdir)
+            (with-temp-file (expand-file-name "Lib.fsproj" root) (insert ""))
+            (expect (project-root (fsharp-ts-mode-project-find subdir))
+                    :to-equal (file-name-as-directory root)))
+        (delete-directory root t))))
+
+  (it "returns nil outside any F# project"
+    (let ((dir (make-temp-file "fsharp-test" t)))
+      (unwind-protect
+          (expect (fsharp-ts-mode-project-find dir) :to-be nil)
+        (delete-directory dir t)))))
+
 (describe "fsharp-ts-mode-set-font-lock-level"
   (it "sets treesit-font-lock-level buffer-locally"
     (with-temp-buffer

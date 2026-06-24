@@ -50,6 +50,9 @@
   `fsharp-ts-mode-set-font-lock-level`, also available from the mode menu.
 - Reorganize the mode menu with Navigate, Edit, Toggle, Font-Lock Level, and
   Documentation submenus, plus a REPL launcher.
+- Integrate with `project.el`: a directory containing an F# solution
+  (`.sln`/`.slnx`) or project (`.fsproj`) file is recognized as a project root,
+  with `bin/` and `obj/` ignored.
 
 ### Bug fixes
 

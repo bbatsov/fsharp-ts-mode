@@ -40,6 +40,7 @@
 
 (require 'treesit)
 (require 'compile)
+(require 'project)
 
 (defgroup fsharp-ts nil
   "Major mode for editing F# code with tree-sitter."
@@ -903,6 +904,37 @@ SOFT is passed through to `comment-indent-new-line'."
           (progn
             (insert "\n" (match-string 1 line) "// "))
         (comment-indent-new-line soft)))))
+
+;;;; Project integration
+;;
+;; Teach `project.el' that a directory containing an F# solution or project
+;; file is a project root, so project-wide commands (find-file, search,
+;; compile, ...) work for F# projects.  Registered with APPEND so
+;; version-control detection still takes precedence when a project is under
+;; git/hg/etc.; this mainly fills the gap for projects that aren't under
+;; version control.
+
+(defun fsharp-ts-mode-project-find (dir)
+  "Return the F# project containing DIR, or nil.
+The project root is the closest directory at or above DIR that contains
+a solution (`.sln'/`.slnx') file, or failing that a project (`.fsproj')
+file."
+  (when-let* ((root (or (locate-dominating-file
+                         dir (lambda (d)
+                               (directory-files d nil "\\.slnx?\\'" t)))
+                        (locate-dominating-file
+                         dir (lambda (d)
+                               (directory-files d nil "\\.fsproj\\'" t))))))
+    (list 'fsharp-ts (expand-file-name root))))
+
+(cl-defmethod project-root ((project (head fsharp-ts)))
+  (cadr project))
+
+(cl-defmethod project-ignores ((_project (head fsharp-ts)) _dir)
+  "Ignore F# build artifacts in addition to the defaults."
+  (append '("bin/" "obj/") (cl-call-next-method)))
+
+(add-hook 'project-find-functions #'fsharp-ts-mode-project-find t)
 
 ;;;; Project name detection
 
