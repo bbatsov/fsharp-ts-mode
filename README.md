@@ -45,6 +45,7 @@ for alternative installation methods and prerequisites.
 - Documentation info panel
 - Pipeline type hints and inlay hints
 - dotnet CLI integration (build, test, run, clean, format, restore, watch mode)
+- Code formatting with [Fantomas](https://fsprojects.github.io/fantomas/) (`C-c C-f`, optional format-on-save)
 - .NET API documentation lookup at point
 - Compilation error parsing for `dotnet build` output
 - Prettify symbols (`->` to `→`, `fun` to `λ`, etc.)
@@ -53,6 +54,8 @@ for alternative installation methods and prerequisites.
 - Auto-detect indentation offset from file contents
 - Build directory awareness (prompts to switch from `bin/`/`obj/` to source)
 - Outline mode integration (Emacs 30+)
+- `project.el` integration for F# solutions and projects
+- Clickable URLs and bug references in comments
 - Project name in mode-line
 - Bug report helpers
 

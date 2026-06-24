@@ -20,12 +20,40 @@ From a source buffer with `fsharp-ts-repl-minor-mode` active:
 |-----------|------------------------------------------|------------------------------------|
 | `C-c C-z` | `fsharp-ts-repl-switch-to-repl`          | Start or switch to the REPL        |
 | `C-c C-c` | `fsharp-ts-repl-send-definition`         | Send definition at point           |
+| `C-c C-n` | `fsharp-ts-repl-send-definition-and-step`| Send definition, then move to next |
 | `C-c C-r` | `fsharp-ts-repl-send-region`             | Send region                        |
 | `C-c C-b` | `fsharp-ts-repl-send-buffer`             | Send entire buffer                 |
 | `C-c C-l` | `fsharp-ts-repl-load-file`               | Load file via `#load` directive    |
 | `C-c C-p` | `fsharp-ts-repl-send-project-references` | Send project references to REPL    |
 | `C-c C-i` | `fsharp-ts-repl-interrupt`               | Interrupt the REPL process         |
 | `C-c C-k` | `fsharp-ts-repl-clear-buffer`            | Clear the REPL buffer              |
+
+`M-x fsharp-ts-repl-require` references a NuGet package via a
+`#r "nuget: ..."` directive, and `M-x fsharp-ts-repl-restart` kills and
+relaunches the toplevel (preserving its flavor). Both are also on the
+**F# REPL** menu, and the REPL buffer itself has a menu for switching
+back to the source, interrupting, restarting, and clearing.
+
+## Per-Project REPLs
+
+Each project gets its own dedicated F# Interactive buffer (named after the
+project, e.g. `*F# Interactive: MyApp*`), so source files always send to the
+toplevel for their own project. The project is detected via
+[`project.el`](usage.md), falling back to the nearest directory with a
+solution or `.fsproj` file. Buffers outside any project share the base
+`*F# Interactive*` buffer.
+
+## REPL Flavor
+
+`fsharp-ts-repl-flavor` selects which toplevel to launch:
+
+- `dotnet` (default): the modern `dotnet fsi`, using `fsharp-ts-repl-program-name`
+  and `fsharp-ts-repl-program-args`.
+- `fsharpi`: the standalone `fsharpi`/`fsi` toplevel (Mono and legacy installs).
+
+Set it globally or per project via a `.dir-locals.el` file. Changing the flavor
+and switching to the REPL offers to restart a running toplevel with the new
+flavor.
 
 !!! note
     When `fsharp-ts-repl-minor-mode` is active, `C-c C-c` sends the
@@ -65,6 +93,9 @@ controlled by `fsharp-ts-repl-history-file`.
 
 ;; Customize arguments (default: '("fsi" "--readline-"))
 (setq fsharp-ts-repl-program-args '("fsi" "--readline-"))
+
+;; Use the standalone fsharpi toplevel instead of `dotnet fsi'
+(setq fsharp-ts-repl-flavor 'fsharpi)
 
 ;; Disable syntax highlighting for REPL input
 (setq fsharp-ts-repl-fontify-input nil)

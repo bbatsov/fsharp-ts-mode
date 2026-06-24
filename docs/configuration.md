@@ -40,6 +40,10 @@ Syntax highlighting is organized into 4 levels, controlled by
 (setq treesit-font-lock-level 4)
 ```
 
+To switch the level for the current buffer without changing the global
+default, use `M-x fsharp-ts-mode-set-font-lock-level` (also on the
+**F# > Font-Lock Level** menu).
+
 ### Toggling Individual Features
 
 You can enable or disable individual font-lock features without
@@ -130,6 +134,29 @@ Disable with:
 fsharp-ts-mode auto-continues `///` doc comments and `//` line comments
 when you press `RET` at the end of a comment line. This makes writing
 multi-line doc comments more convenient.
+
+URLs and bug references in comments are clickable (via
+`goto-address-prog-mode` and `bug-reference-prog-mode`). To resolve bare
+references like `#123`, set `bug-reference-url-format`, e.g. in a
+`.dir-locals.el`:
+
+```emacs-lisp
+((fsharp-ts-mode
+  . ((bug-reference-url-format
+      . "https://github.com/your-org/your-repo/issues/%s"))))
+```
+
+## Formatting
+
+`C-c C-f` (`fsharp-ts-format-buffer`) formats the buffer with
+[Fantomas](https://fsprojects.github.io/fantomas/). Point
+`fsharp-ts-fantomas-program` at your install if it isn't on `PATH`, and
+set `fsharp-ts-format-on-save` to format automatically before saving:
+
+```emacs-lisp
+(setq fsharp-ts-fantomas-program "fantomas")
+(setq fsharp-ts-format-on-save t)
+```
 
 ## Build Directory Awareness
 

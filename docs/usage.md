@@ -34,6 +34,9 @@ The following features work immediately:
 - **Compile** (`C-c C-c`) with error parsing for `dotnet build`
 - **.NET API docs** lookup at point (`C-c C-d`)
 - **Shift region** left/right (`C-c >` / `C-c <`)
+- **Format** the buffer with [Fantomas](https://fsprojects.github.io/fantomas/) (`C-c C-f`)
+- **Clickable links** for URLs and issue references in comments
+- **project.el integration** -- F# solutions and projects are recognized as project roots
 - **Build directory awareness** -- prompts to switch when visiting files under `bin/` or `obj/`
 
 ## Opt-in Features
@@ -103,7 +106,19 @@ active Eglot connection. See
 
 ;; Auto-detect indentation from file contents
 (setq fsharp-ts-guess-indent-offset t)
+
+;; Format with Fantomas on every save
+(setq fsharp-ts-format-on-save t)
 ```
+
+### Formatting
+
+`C-c C-f` (`fsharp-ts-format-buffer`) formats the whole buffer with
+[Fantomas](https://fsprojects.github.io/fantomas/). Install it with
+`dotnet tool install -g fantomas`, or point `fsharp-ts-fantomas-program`
+at a local install. Fantomas reads the nearest `.editorconfig`, so your
+project's formatting settings are respected. Set `fsharp-ts-format-on-save`
+to `t` to format automatically before each save.
 
 ## Recommended Configuration
 
@@ -159,6 +174,7 @@ A typical F# editing session looks like this:
 | `C-c C-a` | `ff-find-other-file`                | Switch between `.fs` and `.fsi` |
 | `C-c C-c` | `compile`                           | Run compilation                 |
 | `C-c C-d` | `fsharp-ts-mode-doc-at-point`       | Look up symbol in .NET docs     |
+| `C-c C-f` | `fsharp-ts-format-buffer`           | Format the buffer with Fantomas |
 | `C-c >`   | `fsharp-ts-mode-shift-region-right` | Indent region by one level      |
 | `C-c <`   | `fsharp-ts-mode-shift-region-left`  | Dedent region by one level      |
 
