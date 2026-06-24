@@ -75,6 +75,20 @@ The project name is detected from the nearest `.fsproj' file."
   :type 'boolean
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
+(defcustom fsharp-ts-fantomas-program "fantomas"
+  "Program used to format F# source via `fsharp-ts-format-buffer'.
+This should be the Fantomas formatter (https://fsprojects.github.io/fantomas/),
+installed e.g. with `dotnet tool install -g fantomas'."
+  :type 'string
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
+(defcustom fsharp-ts-format-on-save nil
+  "When non-nil, format the buffer with Fantomas before saving.
+Only applies in `fsharp-ts-mode' and `fsharp-ts-signature-mode' buffers."
+  :type 'boolean
+  :safe #'booleanp
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
 (defvar fsharp-ts--debug nil
   "Enable debugging messages and show the current node in the mode-line.
 When set to t, show indentation debug info.
@@ -1009,10 +1023,63 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
 
     (treesit-major-mode-setup)))
 
+;;;; Formatting
+
+(defun fsharp-ts-mode--format-extension ()
+  "Return the file extension (with leading dot) to use when formatting.
+When the buffer visits a file, reuse its extension so Fantomas treats
+scripts, signatures, and implementations correctly.  Otherwise derive it
+from the major mode, defaulting to the permissive `.fsx' script syntax."
+  (cond
+   (buffer-file-name (file-name-extension buffer-file-name t))
+   ((derived-mode-p 'fsharp-ts-signature-mode) ".fsi")
+   (t ".fsx")))
+
+(defun fsharp-ts-format-buffer ()
+  "Format the current buffer using Fantomas.
+Writes the buffer to a temporary file alongside the original (so
+Fantomas picks up the nearest `.editorconfig'), formats it in place via
+`fsharp-ts-fantomas-program', and replaces the buffer contents with the
+result, preserving point.  Fantomas formats whole compilation units, so
+there is no region or definition variant."
+  (interactive)
+  (let* ((dir (if buffer-file-name
+                  (file-name-directory buffer-file-name)
+                default-directory))
+         (tmp (make-temp-file (expand-file-name ".fsharp-ts-fantomas-" dir)
+                              nil (fsharp-ts-mode--format-extension)
+                              (buffer-string)))
+         (errbuf (generate-new-buffer " *fsharp-ts-fantomas*"))
+         (orig-point (point))
+         (orig-window-start (window-start)))
+    (unwind-protect
+        (let ((exit-code (call-process fsharp-ts-fantomas-program nil errbuf nil
+                                       tmp)))
+          (if (zerop exit-code)
+              (let ((formatted (with-temp-buffer
+                                 (insert-file-contents tmp)
+                                 (buffer-string))))
+                (unless (string-equal formatted (buffer-string))
+                  (erase-buffer)
+                  (insert formatted)
+                  (goto-char (min orig-point (point-max)))
+                  (set-window-start (selected-window) orig-window-start)))
+            (user-error "Running Fantomas failed: %s"
+                        (with-current-buffer errbuf
+                          (string-trim (buffer-string))))))
+      (kill-buffer errbuf)
+      (delete-file tmp))))
+
+(defun fsharp-ts-mode--format-before-save ()
+  "Format the buffer before saving when `fsharp-ts-format-on-save' is non-nil."
+  (when fsharp-ts-format-on-save
+    (fsharp-ts-format-buffer)))
+
 (defvar fsharp-ts-base-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-a") #'ff-find-other-file)
     (define-key map (kbd "C-c C-c") #'compile)
+    (define-key map (kbd "C-c C-f") #'fsharp-ts-format-buffer)
     (define-key map (kbd "C-c C-d") #'fsharp-ts-mode-doc-at-point)
     (define-key map (kbd "C-c >") #'fsharp-ts-mode-shift-region-right)
     (define-key map (kbd "C-c <") #'fsharp-ts-mode-shift-region-left)
@@ -1059,6 +1126,9 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   ;; `bug-reference-url-format' (e.g. via .dir-locals.el) to resolve refs.
   (goto-address-prog-mode)
   (bug-reference-prog-mode)
+
+  ;; Optional format-on-save via Fantomas
+  (add-hook 'before-save-hook #'fsharp-ts-mode--format-before-save nil t)
 
   (setq-local treesit-font-lock-feature-list
               '((comment definition)

@@ -44,6 +44,8 @@
 - Support `.fsscript` file extension for F# scripts.
 - Make URLs and bug references in comments clickable via `goto-address-prog-mode`
   and `bug-reference-prog-mode` (set `bug-reference-url-format` to resolve refs).
+- Format the buffer with Fantomas (`fsharp-ts-format-buffer`, `C-c C-f`), with
+  optional format-on-save via `fsharp-ts-format-on-save`.
 
 ### Bug fixes
 
