@@ -38,6 +38,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'treesit)
 (require 'compile)
 (require 'project)
@@ -1098,11 +1099,17 @@ there is no region or definition variant."
                               (buffer-string)))
          (errbuf (generate-new-buffer " *fsharp-ts-fantomas*"))
          (orig-point (point))
-         (orig-window-start (window-start)))
+         ;; Scope scroll preservation to the window actually showing this
+         ;; buffer (if any), so format-on-save during a non-interactive save
+         ;; doesn't disturb whichever window happens to be selected.
+         (win (get-buffer-window (current-buffer)))
+         (orig-window-start (and win (window-start win))))
     (unwind-protect
+        ;; `call-process' returns a string when the formatter is killed by a
+        ;; signal, so only treat an integer 0 as success.
         (let ((exit-code (call-process fsharp-ts-fantomas-program nil errbuf nil
                                        tmp)))
-          (if (zerop exit-code)
+          (if (eql exit-code 0)
               (let ((formatted (with-temp-buffer
                                  (insert-file-contents tmp)
                                  (buffer-string))))
@@ -1110,7 +1117,7 @@ there is no region or definition variant."
                   (erase-buffer)
                   (insert formatted)
                   (goto-char (min orig-point (point-max)))
-                  (set-window-start (selected-window) orig-window-start)))
+                  (when win (set-window-start win orig-window-start))))
             (user-error "Running Fantomas failed: %s"
                         (with-current-buffer errbuf
                           (string-trim (buffer-string))))))
