@@ -1088,6 +1088,8 @@ Fantomas picks up the nearest `.editorconfig'), formats it in place via
 result, preserving point.  Fantomas formats whole compilation units, so
 there is no region or definition variant."
   (interactive)
+  (when (file-remote-p default-directory)
+    (user-error "Fantomas formatting is not supported over TRAMP"))
   (let* ((dir (if buffer-file-name
                   (file-name-directory buffer-file-name)
                 default-directory))
