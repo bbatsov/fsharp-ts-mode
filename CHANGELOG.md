@@ -4,6 +4,8 @@
 
 ### New features
 
+- Register F# buffers with [dape](https://github.com/svaante/dape)'s `netcoredbg`
+  configuration, so `M-x dape` offers the .NET debugger out of the box.
 - Enhanced Eglot integration (`fsharp-ts-eglot.el`): auto-download FsAutoComplete
   with version pinning, custom server class with individual feature toggles
   (analyzers, inlay hints, code lenses, pipeline hints, linter), type signature

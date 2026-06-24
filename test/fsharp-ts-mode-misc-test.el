@@ -12,6 +12,10 @@
 (require 'buttercup)
 (require 'fsharp-ts-mode)
 
+;; Declared special so the tests below can dynamically bind it to a stub
+;; standing in for dape's configuration alist.
+(defvar dape-configs)
+
 (describe "fsharp-ts-mode comment continuation"
   (it "continues /// doc comments on newline"
     (with-temp-buffer
@@ -175,5 +179,27 @@
       (fsharp-ts-mode-set-font-lock-level 2)
       (expect treesit-font-lock-level :to-equal 2)
       (expect (local-variable-p 'treesit-font-lock-level) :to-be-truthy))))
+
+(describe "fsharp-ts-mode--register-with-dape"
+  (it "adds fsharp-ts-mode to the netcoredbg config when dape is loaded"
+    (let ((dape-configs
+           (list (cons 'netcoredbg
+                       (list 'modes (list 'csharp-mode 'csharp-ts-mode)
+                             'command "netcoredbg")))))
+      (fsharp-ts-mode--register-with-dape)
+      (expect (plist-get (alist-get 'netcoredbg dape-configs) 'modes)
+              :to-contain 'fsharp-ts-mode)))
+
+  (it "is idempotent"
+    (let ((dape-configs
+           (list (cons 'netcoredbg (list 'modes (list 'csharp-mode))))))
+      (fsharp-ts-mode--register-with-dape)
+      (fsharp-ts-mode--register-with-dape)
+      (expect (cl-count 'fsharp-ts-mode
+                        (plist-get (alist-get 'netcoredbg dape-configs) 'modes))
+              :to-equal 1)))
+
+  (it "does nothing when dape is not loaded"
+    (expect (fsharp-ts-mode--register-with-dape) :not :to-throw)))
 
 ;;; fsharp-ts-mode-misc-test.el ends here

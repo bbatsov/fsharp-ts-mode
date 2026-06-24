@@ -55,6 +55,7 @@ for alternative installation methods and prerequisites.
 - Build directory awareness (prompts to switch from `bin/`/`obj/` to source)
 - Outline mode integration (Emacs 30+)
 - `project.el` integration for F# solutions and projects
+- Debugging via [dape](https://github.com/svaante/dape) (registers F# buffers with `netcoredbg`)
 - Clickable URLs and bug references in comments
 - Project name in mode-line
 - Bug report helpers

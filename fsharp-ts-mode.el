@@ -1224,6 +1224,17 @@ there is no region or definition variant."
     map)
   "Keymap for `fsharp-ts-base-mode'.")
 
+(defun fsharp-ts-mode--register-with-dape ()
+  "Register fsharp-ts-mode with dape's netcoredbg config if dape is loaded.
+This lets \\[dape] offer the `netcoredbg' .NET debugger configuration in
+F# buffers out of the box.  The config builds and debugs the project's
+`bin/Debug' DLL, which works for F# projects as well as C# ones."
+  (when (boundp 'dape-configs)
+    (when-let* ((cfg (alist-get 'netcoredbg dape-configs)))
+      (let ((modes (plist-get cfg 'modes)))
+        (unless (memq 'fsharp-ts-mode modes)
+          (plist-put cfg 'modes (cons 'fsharp-ts-mode modes)))))))
+
 (define-derived-mode fsharp-ts-base-mode prog-mode "F#"
   "Base major mode for F# files, providing shared setup.
 This mode is not intended to be used directly.  Use `fsharp-ts-mode'
@@ -1284,7 +1295,10 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   (when (and fsharp-ts-show-project-name buffer-file-name)
     (setq fsharp-ts-mode--project-name (fsharp-ts-mode--detect-project-name))
     (when fsharp-ts-mode--project-name
-      (setq mode-name (format "F#[%s]" fsharp-ts-mode--project-name)))))
+      (setq mode-name (format "F#[%s]" fsharp-ts-mode--project-name))))
+
+  ;; Register with dape's netcoredbg config for F# debugging.
+  (fsharp-ts-mode--register-with-dape))
 
 ;;;###autoload
 (define-derived-mode fsharp-ts-mode fsharp-ts-base-mode "F#"

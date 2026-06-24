@@ -199,6 +199,18 @@ Both shift commands accept a prefix argument to shift by multiple levels
 `fsharp-ts-indent-offset` to match the file's convention. Set
 `fsharp-ts-guess-indent-offset` to `t` to run this automatically on file open.
 
+## Debugging
+
+fsharp-ts-mode registers F# buffers with [dape](https://github.com/svaante/dape)'s
+built-in `netcoredbg` configuration, so once dape and the
+[netcoredbg](https://github.com/Samsung/netcoredbg) adapter are installed,
+`M-x dape` offers the .NET debugger in F# buffers with no extra setup. The
+configuration builds and debugs the project's `bin/Debug` DLL, which works
+for F# projects just as it does for C# ones.
+
+Registration happens when a buffer enters the mode, so load dape before
+opening your F# files (or revert the buffer afterwards).
+
 ## Known Limitations
 
 F# is an indentation-sensitive language -- the tree-sitter grammar needs
@@ -215,3 +227,4 @@ These packages work well alongside fsharp-ts-mode:
 - [flymake](https://www.gnu.org/software/emacs/manual/html_node/flymake/) -- inline diagnostics (works with eglot)
 - [which-key](https://github.com/justbur/emacs-which-key) -- keybinding discovery
 - [expreg](https://github.com/casouri/expreg) -- structural selection using tree-sitter
+- [dape](https://github.com/svaante/dape) -- debugging via the Debug Adapter Protocol (see [Debugging](#debugging))
