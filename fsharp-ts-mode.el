@@ -1055,6 +1055,11 @@ for .fs files and `fsharp-ts-signature-mode' for .fsi files."
   ;; correct indentation from a single keystroke, so inhibit it.
   (setq-local electric-indent-inhibit t)
 
+  ;; Make URLs and bug references in comments clickable.  Set
+  ;; `bug-reference-url-format' (e.g. via .dir-locals.el) to resolve refs.
+  (goto-address-prog-mode)
+  (bug-reference-prog-mode)
+
   (setq-local treesit-font-lock-feature-list
               '((comment definition)
                 (keyword string type)

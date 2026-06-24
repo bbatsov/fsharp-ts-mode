@@ -42,6 +42,8 @@
 - FSDN search by type signature (`fsharp-ts-mode-search-by-signature`).
 - Prompt to install tree-sitter grammars when missing on mode activation.
 - Support `.fsscript` file extension for F# scripts.
+- Make URLs and bug references in comments clickable via `goto-address-prog-mode`
+  and `bug-reference-prog-mode` (set `bug-reference-url-format` to resolve refs).
 
 ### Bug fixes
 
