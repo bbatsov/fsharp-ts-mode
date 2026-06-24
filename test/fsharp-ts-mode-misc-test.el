@@ -136,4 +136,12 @@
                 (expect (buffer-string) :to-equal "let  x=1"))))
         (delete-file fake)))))
 
+(describe "fsharp-ts-mode-set-font-lock-level"
+  (it "sets treesit-font-lock-level buffer-locally"
+    (with-temp-buffer
+      (fsharp-ts-mode)
+      (fsharp-ts-mode-set-font-lock-level 2)
+      (expect treesit-font-lock-level :to-equal 2)
+      (expect (local-variable-p 'treesit-font-lock-level) :to-be-truthy))))
+
 ;;; fsharp-ts-mode-misc-test.el ends here

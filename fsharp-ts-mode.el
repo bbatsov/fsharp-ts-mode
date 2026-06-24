@@ -1023,6 +1023,19 @@ LANGUAGE should be `fsharp' or `fsharp-signature'."
 
     (treesit-major-mode-setup)))
 
+;;;; Font-lock level
+
+(defun fsharp-ts-mode-set-font-lock-level (level)
+  "Set `treesit-font-lock-level' to LEVEL in the current buffer and refontify.
+LEVEL ranges from 1 (comments and definitions only) to 4 (maximum
+fontification).  The change is buffer-local; use \\[customize-variable] on
+`treesit-font-lock-level' to set the default for new buffers."
+  (interactive (list (read-number "Font-lock level (1-4): " treesit-font-lock-level)))
+  (setq-local treesit-font-lock-level level)
+  (treesit-font-lock-recompute-features)
+  (font-lock-flush)
+  (message "[fsharp-ts] Font-lock level set to %d" level))
+
 ;;;; Formatting
 
 (defun fsharp-ts-mode--format-extension ()
@@ -1085,21 +1098,88 @@ there is no region or definition variant."
     (define-key map (kbd "C-c <") #'fsharp-ts-mode-shift-region-left)
     (easy-menu-define fsharp-ts-mode-menu map "F# Mode Menu"
       '("F#"
-        ["Compile" compile t]
-        ["Switch to .fs/.fsi" ff-find-other-file t]
-        ["Shift Region Right" fsharp-ts-mode-shift-region-right
-         :active mark-active]
-        ["Shift Region Left" fsharp-ts-mode-shift-region-left
-         :active mark-active]
-        ["Guess Indent Offset" fsharp-ts-mode-guess-indent-offset t]
+        ("Navigate"
+         ["Beginning of Definition" beginning-of-defun
+          :help "Move to the beginning of the current definition"]
+         ["End of Definition" end-of-defun
+          :help "Move to the end of the current definition"]
+         ["Forward Expression" forward-sexp
+          :help "Move forward across one balanced expression"]
+         ["Backward Expression" backward-sexp
+          :help "Move backward across one balanced expression"])
+        ("Find..."
+         ["Switch to .fs/.fsi" ff-find-other-file
+          :help "Switch between the .fs and .fsi file"])
+        ("Edit"
+         ["Comment Out Region" comment-region (use-region-p)
+          :help "Comment out the lines in the region"]
+         ["Uncomment Region" uncomment-region (use-region-p)
+          :help "Uncomment the lines in the region"]
+         ["Fill Comment Paragraph" fill-paragraph t
+          :help "Fill the comment paragraph at point"]
+         "--"
+         ["Indent Region" indent-region (use-region-p)
+          :help "Reindent the lines in the region"]
+         ["Shift Region Right" fsharp-ts-mode-shift-region-right
+          :active mark-active
+          :help "Indent the region by one step"]
+         ["Shift Region Left" fsharp-ts-mode-shift-region-left
+          :active mark-active
+          :help "Outdent the region by one step"]
+         ["Guess Indent Offset" fsharp-ts-mode-guess-indent-offset t
+          :help "Set the indent offset to match the buffer's convention"]
+         "--"
+         ["Format Buffer (Fantomas)" fsharp-ts-format-buffer
+          :help "Format the whole buffer with Fantomas"])
+        ("Toggle"
+         ["Prettify Symbols" prettify-symbols-mode
+          :style toggle :selected (bound-and-true-p prettify-symbols-mode)
+          :help "Display keywords and operators using Unicode symbols"]
+         ["Subword Mode" subword-mode
+          :style toggle :selected (bound-and-true-p subword-mode)
+          :help "Treat CamelCase subwords as separate words when moving"]
+         ["Outline Minor Mode" outline-minor-mode
+          :style toggle :selected (bound-and-true-p outline-minor-mode)
+          :help "Fold and navigate top-level definitions"])
+        ("Font-Lock Level"
+         ["1 - Comments & definitions" (fsharp-ts-mode-set-font-lock-level 1)
+          :style radio :selected (= treesit-font-lock-level 1)
+          :help "Fontify only comments and definitions"]
+         ["2 - + keywords, strings, types" (fsharp-ts-mode-set-font-lock-level 2)
+          :style radio :selected (= treesit-font-lock-level 2)
+          :help "Also fontify keywords, strings, and data types"]
+         ["3 - + constants, numbers, etc." (fsharp-ts-mode-set-font-lock-level 3)
+          :style radio :selected (= treesit-font-lock-level 3)
+          :help "Full fontification: constants, numbers, literals, etc."]
+         ["4 - Everything" (fsharp-ts-mode-set-font-lock-level 4)
+          :style radio :selected (= treesit-font-lock-level 4)
+          :help "Also fontify delimiters, operators, variables, etc."]
+         "--"
+         ["Customize (persist)..." (customize-variable 'treesit-font-lock-level)
+          :help "Set the default font-lock level for new buffers"])
         "---"
-        ["Browse F# Docs" fsharp-ts-mode-browse-fsharp-docs t]
-        ["Look Up Symbol at Point" fsharp-ts-mode-doc-at-point t]
+        ["Start/Switch to REPL" fsharp-ts-repl-switch-to-repl
+         :help "Start F# Interactive or switch to a running one"]
+        ["Compile..." compile
+         :help "Compile the project"]
+        ("Documentation"
+         ["Browse F# Docs" fsharp-ts-mode-browse-fsharp-docs
+          :help "Browse the F# documentation in a web browser"]
+         ["Look Up Symbol at Point" fsharp-ts-mode-doc-at-point
+          :help "Look up the symbol at point in the .NET API docs"]
+         ["Search by Type Signature" fsharp-ts-mode-search-by-signature
+          :help "Search FSDN for functions matching a type signature"])
         "---"
-        ["Install Grammars" fsharp-ts-mode-install-grammars t]
-        ["Show Version" fsharp-ts-mode-version t]
-        ["Bug Report Info" fsharp-ts-mode-bug-report-info t]
-        ["Report a Bug" fsharp-ts-mode-report-bug t]))
+        ["Install Grammars" fsharp-ts-mode-install-grammars
+         :help "Install the F# tree-sitter grammars"]
+        ["Customize fsharp-ts..." (customize-group 'fsharp-ts)
+         :help "Customize fsharp-ts-mode settings"]
+        ["Show Version" fsharp-ts-mode-version
+         :help "Display the fsharp-ts-mode version"]
+        ["Bug Report Info" fsharp-ts-mode-bug-report-info
+         :help "Show environment info useful for bug reports"]
+        ["Report a Bug" fsharp-ts-mode-report-bug
+         :help "Report a bug to the fsharp-ts-mode issue tracker"]))
     map)
   "Keymap for `fsharp-ts-base-mode'.")
 

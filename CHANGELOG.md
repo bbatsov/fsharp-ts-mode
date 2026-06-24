@@ -46,6 +46,10 @@
   and `bug-reference-prog-mode` (set `bug-reference-url-format` to resolve refs).
 - Format the buffer with Fantomas (`fsharp-ts-format-buffer`, `C-c C-f`), with
   optional format-on-save via `fsharp-ts-format-on-save`.
+- Switch the tree-sitter font-lock level interactively with
+  `fsharp-ts-mode-set-font-lock-level`, also available from the mode menu.
+- Reorganize the mode menu with Navigate, Edit, Toggle, Font-Lock Level, and
+  Documentation submenus, plus a REPL launcher.
 
 ### Bug fixes
 
