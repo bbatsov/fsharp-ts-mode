@@ -104,6 +104,63 @@
       (let ((fsharp-ts-repl-flavor 'fsharpi))
         (expect (fsharp-ts-repl--command) :to-equal '("fsharpi")))))
 
+  (describe "mistty backend"
+    (it "drops --readline- so FSI keeps its own readline for completion"
+      (let ((fsharp-ts-repl-backend 'mistty)
+            (fsharp-ts-repl-flavor 'dotnet)
+            (fsharp-ts-repl-program-name "dotnet")
+            (fsharp-ts-repl-program-args '("fsi" "--readline-")))
+        (expect (fsharp-ts-repl--command) :to-equal '("dotnet" "fsi"))))
+
+    (it "keeps --readline- for the comint backend"
+      (let ((fsharp-ts-repl-backend 'comint)
+            (fsharp-ts-repl-flavor 'dotnet)
+            (fsharp-ts-repl-program-name "dotnet")
+            (fsharp-ts-repl-program-args '("fsi" "--readline-")))
+        (expect (fsharp-ts-repl--command) :to-equal '("dotnet" "fsi" "--readline-"))))
+
+    (it "routes input through mistty-send-string, terminated with ;;"
+      (let ((fsharp-ts-repl-backend 'mistty)
+            sent)
+        (cl-letf (((symbol-function 'mistty-send-string)
+                   (lambda (str) (setq sent str))))
+          (with-temp-buffer
+            (cl-letf (((symbol-function 'fsharp-ts-repl--buffer)
+                       (let ((b (current-buffer))) (lambda () (buffer-name b)))))
+              (fsharp-ts-repl--input-sender nil "let x = 1")
+              (expect sent :to-equal "let x = 1;;\n"))))))
+
+    (it "send-raw routes through mistty without appending a terminator"
+      (let ((fsharp-ts-repl-backend 'mistty)
+            sent)
+        (cl-letf (((symbol-function 'mistty-send-string)
+                   (lambda (str) (push str sent))))
+          (with-temp-buffer
+            (cl-letf (((symbol-function 'fsharp-ts-repl--buffer)
+                       (let ((b (current-buffer))) (lambda () (buffer-name b)))))
+              (fsharp-ts-repl--send-raw "#r \"nuget: Foo\"\n")
+              (expect sent :to-equal '("#r \"nuget: Foo\"\n")))))))
+
+    (it "checks liveness via mistty-live-buffer-p"
+      (let ((fsharp-ts-repl-backend 'mistty))
+        (with-temp-buffer
+          (cl-letf (((symbol-function 'mistty-live-buffer-p)
+                     (lambda (buf) (and (bufferp buf) 'live))))
+            (expect (fsharp-ts-repl--live-p (buffer-name)) :to-equal 'live)))))
+
+    (it "reads the process from the buffer-local mistty-proc"
+      (let ((fsharp-ts-repl-backend 'mistty))
+        (with-temp-buffer
+          (setq-local mistty-proc 'fake-proc)
+          (expect (fsharp-ts-repl--buffer-process (buffer-name))
+                  :to-equal 'fake-proc))))
+
+    (it "errors when starting a mistty REPL without the mistty package"
+      (let ((fsharp-ts-repl-backend 'mistty))
+        (expect (fsharp-ts-repl--start-mistty "*F# mistty test*"
+                                              '("dotnet" "fsi") 'dotnet)
+                :to-throw 'user-error))))
+
   (describe "sending definitions"
     (before-all
       (unless (treesit-language-available-p 'fsharp)

@@ -55,6 +55,30 @@ Set it globally or per project via a `.dir-locals.el` file. Changing the flavor
 and switching to the REPL offers to restart a running toplevel with the new
 flavor.
 
+## REPL Backend (experimental)
+
+`fsharp-ts-repl-backend` chooses what hosts the REPL buffer:
+
+- `comint` (default): the built-in comint backend. Gives tree-sitter
+  fontification of the input you type, a persistent input-history ring, and
+  the custom output highlighting (errors, `val`/`type` results). FSI runs
+  with `--readline-`, so there's no native tab-completion in the REPL.
+- `mistty`: runs FSI inside a [MisTTY](https://github.com/szermatt/mistty)
+  terminal, so FSI's own readline drives **native tab-completion,
+  autosuggestions, and full terminal line editing**. The `--readline-` flag
+  is dropped automatically. Requires the `mistty` package (Emacs 29.1+,
+  Linux/macOS).
+
+```emacs-lisp
+(setq fsharp-ts-repl-backend 'mistty)
+```
+
+All the code-sending commands (`C-c C-c`, `C-c C-r`, `C-c C-n`, ...) work
+with both backends. The trade-off with `mistty` is that you lose comint's
+tree-sitter input fontification, the input-history ring, and the REPL output
+font-lock; clearing the buffer is handled by the terminal (e.g. `C-l`)
+instead of `fsharp-ts-repl-clear-buffer`.
+
 !!! note
     When `fsharp-ts-repl-minor-mode` is active, `C-c C-c` sends the
     definition at point to the REPL instead of running `compile`. Use
