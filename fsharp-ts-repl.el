@@ -9,9 +9,10 @@
 ;;; Commentary:
 
 ;; This library provides integration with F# Interactive (dotnet fsi)
-;; for the fsharp-ts-mode package.  It offers a comint-based REPL with
-;; tree-sitter syntax highlighting for input, and a minor mode for
-;; sending code from source buffers.
+;; for the fsharp-ts-mode package.  It offers a REPL -- comint-based by
+;; default, with an optional MisTTY backend (`fsharp-ts-repl-backend') for
+;; native FSI completion -- and a minor mode for sending code from source
+;; buffers.
 
 ;;; License:
 
@@ -40,6 +41,14 @@
 
 (declare-function eglot-current-server "eglot")
 (declare-function jsonrpc-request "jsonrpc")
+
+;; Soft dependency on MisTTY, used only when `fsharp-ts-repl-backend' is
+;; `mistty'.  The package is required lazily when such a REPL is started.
+(declare-function mistty-mode "mistty")
+(declare-function mistty-exec "mistty" (program &rest args))
+(declare-function mistty-send-string "mistty" (str))
+(declare-function mistty-live-buffer-p "mistty" (buffer))
+(defvar mistty-proc)
 
 (defgroup fsharp-ts-repl nil
   "F# Interactive (REPL) integration for fsharp-ts-mode."
@@ -82,6 +91,24 @@ it when it starts."
   :safe (lambda (v) (memq v '(dotnet fsharpi)))
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
+(defcustom fsharp-ts-repl-backend 'comint
+  "Which backend hosts the F# Interactive REPL buffer.
+- `comint': the built-in comint backend (the default).  Gives tree-sitter
+  fontification of REPL input and a persistent input history ring, but no
+  native FSI completion.
+- `mistty': run FSI inside a MisTTY terminal, for native FSI tab
+  completion, autosuggestions, and full terminal line editing -- at the
+  cost of comint's tree-sitter input fontification, the input history ring,
+  and the REPL output font-lock.  Requires the `mistty' package; FSI is
+  launched with its own readline enabled (the `--readline-' flag is dropped).
+
+This is experimental.  Code-sending commands (`fsharp-ts-repl-send-region'
+and friends) work with both backends."
+  :type '(choice (const :tag "comint" comint)
+                 (const :tag "MisTTY" mistty))
+  :safe (lambda (v) (memq v '(comint mistty)))
+  :package-version '(fsharp-ts-mode . "0.1.0"))
+
 (defcustom fsharp-ts-repl-history-file
   (expand-file-name "fsharp-ts-repl-history" user-emacs-directory)
   "File to persist F# REPL input history across sessions.
@@ -118,6 +145,12 @@ The default `dotnet fsi' prompt is \"> \".")
   "Source buffer from which the REPL was last invoked.
 Used by `fsharp-ts-repl-switch-to-source' to return to the source buffer.")
 
+(defvar-local fsharp-ts-repl--repl-buffer-p nil
+  "Non-nil in a buffer that hosts an F# REPL, regardless of backend.
+The comint backend can also be recognized by its major mode, but the
+mistty backend runs in `mistty-mode', so this marker is the portable way
+to tell whether the current buffer is a REPL.")
+
 ;;;; Per-project REPL buffers
 ;;
 ;; Each project gets its own dedicated REPL, so source files send to the
@@ -144,7 +177,8 @@ In a REPL buffer, that is the buffer itself.  In a source buffer, it is
 the per-project REPL derived from `fsharp-ts-repl-buffer-name' and the
 project identifier (or the base name when there is no project)."
   (cond
-   ((derived-mode-p 'fsharp-ts-repl-mode) (buffer-name))
+   ((or (derived-mode-p 'fsharp-ts-repl-mode) fsharp-ts-repl--repl-buffer-p)
+    (buffer-name))
    ((fsharp-ts-repl--project-id)
     (let ((base (if (string-suffix-p "*" fsharp-ts-repl-buffer-name)
                     (substring fsharp-ts-repl-buffer-name 0 -1)
@@ -161,33 +195,83 @@ One of the symbols accepted by `fsharp-ts-repl-flavor'.")
 Recorded so `fsharp-ts-repl-restart' can relaunch the same toplevel.")
 
 (defun fsharp-ts-repl--command ()
-  "Return (PROGRAM . ARGS) for the current `fsharp-ts-repl-flavor'.
+  "Return (PROGRAM . ARGS) for the current flavor and backend.
 The `dotnet' flavor uses `fsharp-ts-repl-program-name' and
-`fsharp-ts-repl-program-args'; `fsharpi' uses the standalone toplevel."
-  (pcase fsharp-ts-repl-flavor
-    ('fsharpi (cons "fsharpi" nil))
-    (_ (cons fsharp-ts-repl-program-name fsharp-ts-repl-program-args))))
+`fsharp-ts-repl-program-args'; `fsharpi' uses the standalone toplevel.
+The mistty backend drops the `--readline-' flag so FSI's own readline,
+and thus tab completion, is available inside the terminal."
+  (let ((cmd (pcase fsharp-ts-repl-flavor
+               ('fsharpi (cons "fsharpi" nil))
+               (_ (cons fsharp-ts-repl-program-name fsharp-ts-repl-program-args)))))
+    (if (eq fsharp-ts-repl-backend 'mistty)
+        (cons (car cmd) (remove "--readline-" (cdr cmd)))
+      cmd)))
 
-(defun fsharp-ts-repl--start-command (bufname command flavor)
-  "Start a REPL in BUFNAME running COMMAND for FLAVOR, and return the buffer.
-COMMAND is a (PROGRAM . ARGS) pair.  Records FLAVOR and COMMAND
-buffer-locally so the REPL can be restarted as the same toplevel."
+(defun fsharp-ts-repl--live-p (bufname)
+  "Return non-nil if a REPL process is running in BUFNAME, per the backend."
+  (pcase fsharp-ts-repl-backend
+    ('mistty (when-let* ((buf (get-buffer bufname)))
+               (mistty-live-buffer-p buf)))
+    (_ (comint-check-proc bufname))))
+
+(defun fsharp-ts-repl--buffer-process (bufname)
+  "Return the process backing the REPL in BUFNAME, or nil, per the backend."
+  (pcase fsharp-ts-repl-backend
+    ('mistty (when-let* ((buf (get-buffer bufname)))
+               (buffer-local-value 'mistty-proc buf)))
+    (_ (get-buffer-process bufname))))
+
+(defun fsharp-ts-repl--start-comint (bufname command flavor)
+  "Start a comint REPL in BUFNAME running COMMAND for FLAVOR.
+Return the buffer.  COMMAND is a (PROGRAM . ARGS) pair."
   (let ((buffer (apply #'make-comint-in-buffer "F# Interactive" bufname
                        (car command) nil (cdr command))))
     (with-current-buffer buffer
       (fsharp-ts-repl-mode)
+      (setq fsharp-ts-repl--repl-buffer-p t)
       (setq fsharp-ts-repl--flavor flavor)
       (setq fsharp-ts-repl--command-line command)
       (setq mode-name (format "F#-REPL[%s]" flavor)))
     buffer))
 
+(defun fsharp-ts-repl--start-mistty (bufname command flavor)
+  "Start a MisTTY REPL in BUFNAME running COMMAND for FLAVOR.
+Return the buffer.  COMMAND is a (PROGRAM . ARGS) pair.  Signals a
+`user-error' when the `mistty' package is not available."
+  (unless (require 'mistty nil t)
+    (user-error "The mistty REPL backend requires the `mistty' package"))
+  ;; mistty keeps internal state (a hidden term buffer) that re-running
+  ;; `mistty-mode' over a reused buffer wouldn't reset cleanly, so on restart
+  ;; we discard the old buffer and start fresh.
+  (when (get-buffer bufname)
+    (kill-buffer bufname))
+  (let ((buffer (get-buffer-create bufname)))
+    (with-current-buffer buffer
+      (mistty-mode)
+      (mistty-exec command)
+      (setq fsharp-ts-repl--repl-buffer-p t)
+      (setq fsharp-ts-repl--flavor flavor)
+      (setq fsharp-ts-repl--command-line command)
+      (setq mode-name (format "F#-REPL[%s]" flavor))
+      ;; Buffer-local so we don't clobber the global mistty keymap.
+      (local-set-key (kbd "C-c C-z") #'fsharp-ts-repl-switch-to-source))
+    buffer))
+
+(defun fsharp-ts-repl--start-command (bufname command flavor)
+  "Start a REPL in BUFNAME running COMMAND for FLAVOR, and return the buffer.
+COMMAND is a (PROGRAM . ARGS) pair.  Dispatches on `fsharp-ts-repl-backend'
+and records FLAVOR and COMMAND buffer-locally so the REPL can be restarted
+as the same toplevel."
+  (pcase fsharp-ts-repl-backend
+    ('mistty (fsharp-ts-repl--start-mistty bufname command flavor))
+    (_ (fsharp-ts-repl--start-comint bufname command flavor))))
+
 (defun fsharp-ts-repl--kill (bufname)
   "Kill the REPL process running in BUFNAME, if any."
-  (when (comint-check-proc bufname)
-    (let ((proc (get-buffer-process bufname)))
-      (when proc
-        (set-process-query-on-exit-flag proc nil)
-        (delete-process proc)))))
+  (when (fsharp-ts-repl--live-p bufname)
+    (when-let* ((proc (fsharp-ts-repl--buffer-process bufname)))
+      (set-process-query-on-exit-flag proc nil)
+      (delete-process proc))))
 
 ;;;; REPL mode
 
@@ -263,15 +347,29 @@ Highlights prompts, errors, warnings, and toplevel response values.")
 ;;;; Input handling
 
 (defun fsharp-ts-repl--input-sender (proc input)
-  "Send INPUT to PROC, appending `;;' terminator if missing.
+  "Send INPUT to the REPL, appending `;;' terminator if missing.
 F# Interactive requires `;;' to terminate an expression.  Only checks
 the end of input (ignoring trailing whitespace) to avoid false positives
-from `;;' inside strings."
+from `;;' inside strings.  PROC is the comint process for the comint
+backend; the mistty backend ignores it and sends to the REPL buffer's
+terminal instead."
   (let* ((trimmed (string-trim-right input))
-         (terminated (string-suffix-p ";;" trimmed)))
-    (comint-send-string proc (if terminated
-                                 (concat input "\n")
-                               (concat input ";;\n")))))
+         (text (if (string-suffix-p ";;" trimmed)
+                   (concat input "\n")
+                 (concat input ";;\n"))))
+    (pcase fsharp-ts-repl-backend
+      ('mistty (with-current-buffer (fsharp-ts-repl--buffer)
+                 (mistty-send-string text)))
+      (_ (comint-send-string proc text)))))
+
+(defun fsharp-ts-repl--send-raw (text)
+  "Send TEXT to the current context's REPL verbatim, per the backend.
+Unlike `fsharp-ts-repl--input-sender', this appends no `;;' terminator,
+so callers that batch multi-line input control termination themselves."
+  (pcase fsharp-ts-repl-backend
+    ('mistty (with-current-buffer (fsharp-ts-repl--buffer)
+               (mistty-send-string text)))
+    (_ (comint-send-string (fsharp-ts-repl--process) text))))
 
 ;;;; Starting and switching
 
@@ -281,7 +379,7 @@ from `;;' inside strings."
 If a REPL for the project is already running, switch to its buffer."
   (interactive)
   (let ((bufname (fsharp-ts-repl--buffer)))
-    (if (comint-check-proc bufname)
+    (if (fsharp-ts-repl--live-p bufname)
         (pop-to-buffer bufname)
       (pop-to-buffer
        (fsharp-ts-repl--start-command bufname (fsharp-ts-repl--command)
@@ -303,7 +401,7 @@ Use \\[fsharp-ts-repl-switch-to-source] in the REPL to return."
   (interactive)
   (let* ((source (current-buffer))
          (bufname (fsharp-ts-repl--buffer))
-         (running (comint-check-proc bufname))
+         (running (fsharp-ts-repl--live-p bufname))
          (running-flavor (and running
                               (buffer-local-value 'fsharp-ts-repl--flavor
                                                   (get-buffer bufname)))))
@@ -326,11 +424,15 @@ restart it as %s? " running-flavor fsharp-ts-repl-flavor)))
 
 (defun fsharp-ts-repl--process ()
   "Return the REPL process for the current context, or nil if not running."
-  (get-buffer-process (fsharp-ts-repl--buffer)))
+  (fsharp-ts-repl--buffer-process (fsharp-ts-repl--buffer)))
 
 (defun fsharp-ts-repl--ensure-running ()
-  "Start an F# REPL for the current buffer's project if one is not running."
-  (unless (comint-check-proc (fsharp-ts-repl--buffer))
+  "Start an F# REPL for the current buffer's project if one is not running.
+Note: with the mistty backend, FSI starts asynchronously, so the first
+send right after a cold start may land before FSI's reader is ready.
+Start the REPL explicitly (\\[fsharp-ts-repl-switch-to-repl]) first to
+avoid this."
+  (unless (fsharp-ts-repl--live-p (fsharp-ts-repl--buffer))
     (save-window-excursion
       (fsharp-ts-repl-start))))
 
@@ -511,12 +613,12 @@ via `dotnet msbuild', then sends `#r' and `#load' directives to FSI."
     (when (string-empty-p directives)
       (user-error "No references or sources found in %s" fsproj))
     (fsharp-ts-repl--ensure-running)
-    (let ((proc (fsharp-ts-repl--process)))
-      ;; Send each directive individually to avoid overwhelming FSI
-      (dolist (line (split-string directives "\n" t))
-        (unless (string-prefix-p "//" line)
-          (comint-send-string proc (concat line "\n"))))
-      (comint-send-string proc ";;\n"))
+    ;; Send each directive individually to avoid overwhelming FSI, routing
+    ;; through the backend so the mistty terminal isn't bypassed.
+    (dolist (line (split-string directives "\n" t))
+      (unless (string-prefix-p "//" line)
+        (fsharp-ts-repl--send-raw (concat line "\n"))))
+    (fsharp-ts-repl--send-raw ";;\n")
     (message "Sent %d references and %d source files to FSI" ref-count src-count)))
 
 ;;;###autoload
@@ -545,20 +647,25 @@ via `dotnet msbuild'."
 ;;;; REPL management
 
 (defun fsharp-ts-repl-clear-buffer ()
-  "Clear the F# REPL buffer for the current context."
+  "Clear the F# REPL buffer for the current context.
+With the mistty backend the terminal owns its scrollback, so this is a
+no-op there -- use the terminal's own clear (e.g. \\`C-l') instead."
   (interactive)
   (let ((bufname (fsharp-ts-repl--buffer)))
-    (if (comint-check-proc bufname)
-        (with-current-buffer bufname
+    (cond
+     ((not (fsharp-ts-repl--live-p bufname))
+      (user-error "No F# REPL is running for this project"))
+     ((eq fsharp-ts-repl-backend 'mistty)
+      (message "Clearing is handled by the terminal with the mistty backend"))
+     (t (with-current-buffer bufname
           (let ((inhibit-read-only t))
             (erase-buffer)
-            (comint-send-input)))
-      (user-error "No F# REPL is running for this project"))))
+            (comint-send-input)))))))
 
 (defun fsharp-ts-repl-interrupt ()
   "Interrupt the F# REPL process for the current context."
   (interactive)
-  (when (comint-check-proc (fsharp-ts-repl--buffer))
+  (when (fsharp-ts-repl--live-p (fsharp-ts-repl--buffer))
     (interrupt-process (fsharp-ts-repl--process))))
 
 ;;;###autoload
@@ -604,10 +711,10 @@ buffer, preserving the toplevel flavor it was launched with."
         ["Generate References File" fsharp-ts-repl-generate-references-file]
         "--"
         ["Interrupt REPL" fsharp-ts-repl-interrupt
-         :enable (comint-check-proc (fsharp-ts-repl--buffer))]
+         :enable (fsharp-ts-repl--live-p (fsharp-ts-repl--buffer))]
         ["Restart REPL" fsharp-ts-repl-restart]
         ["Clear REPL Buffer" fsharp-ts-repl-clear-buffer
-         :enable (comint-check-proc (fsharp-ts-repl--buffer))]))
+         :enable (fsharp-ts-repl--live-p (fsharp-ts-repl--buffer))]))
     map)
   "Keymap for F# Interactive source buffer integration.")
 

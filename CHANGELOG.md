@@ -6,6 +6,10 @@
 
 - Register F# buffers with [dape](https://github.com/svaante/dape)'s `netcoredbg`
   configuration, so `M-x dape` offers the .NET debugger out of the box.
+- Experimental MisTTY REPL backend (`fsharp-ts-repl-backend` set to `mistty`):
+  runs FSI in a [MisTTY](https://github.com/szermatt/mistty) terminal for
+  native tab-completion and autosuggestions, trading away comint's tree-sitter
+  input highlighting and history ring.
 - Enhanced Eglot integration (`fsharp-ts-eglot.el`): auto-download FsAutoComplete
   with version pinning, custom server class with individual feature toggles
   (analyzers, inlay hints, code lenses, pipeline hints, linter), type signature
