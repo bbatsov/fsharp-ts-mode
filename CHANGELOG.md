@@ -72,6 +72,9 @@
 
 ### Bug fixes
 
+- [#16](https://github.com/bbatsov/fsharp-ts-mode/pull/16): Fix
+  `wrong-number-of-arguments` when starting eglot, as the built-in versions call
+  the server contact function with an argument.
 - Fix inconsistent font-lock on qualified paths (e.g.,
   `Microsoft.FSharp.Primitives.Basics.Array.subUnchecked` no longer alternates
   faces). Removed the `^[A-Z]` heuristic for DU constructors in expressions
