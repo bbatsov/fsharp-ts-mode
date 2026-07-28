@@ -114,10 +114,10 @@ Only intended for use at development time.")
 
 (defconst fsharp-ts-mode-grammar-recipes
   '((fsharp "https://github.com/ionide/tree-sitter-fsharp"
-            "0.2.2"
+            "0.3.3"
             "fsharp/src")
     (fsharp-signature "https://github.com/ionide/tree-sitter-fsharp"
-                      "0.2.2"
+                      "0.3.3"
                       "fsharp_signature/src"))
   "Tree-sitter grammar recipes for F# and F# Signature.
 Each entry is a list of (LANGUAGE URL REV SOURCE-DIR).
@@ -205,9 +205,8 @@ The return value is suitable for `treesit-font-lock-settings'."
    (treesit-font-lock-rules
     :language language
     :feature 'comment
-    '(;; Doc comments start with ///
-      ((line_comment) @font-lock-doc-face
-       (:match "^///" @font-lock-doc-face))
+    '(;; Doc comments (///) are their own node in the grammar
+      (xml_doc) @font-lock-doc-face
       (line_comment) @font-lock-comment-face
       (block_comment) @font-lock-comment-face)
 
@@ -231,7 +230,10 @@ The return value is suitable for `treesit-font-lock-settings'."
 
     :language language
     :feature 'delimiter
-    '((["," ";" ":"]) @font-lock-delimiter-face)
+    ;; `;' is not a delimiter in fsharp signatures
+    (if (eq language 'fsharp)
+        '((["," ";" ":"]) @font-lock-delimiter-face)
+      '(([","  ":"]) @font-lock-delimiter-face))
 
     :language language
     :feature 'variable
@@ -749,11 +751,11 @@ of sexps to move."
                               "exception_definition" "module_defn"
                               "import_decl" "member_defn")
                             'symbols))
-     (text ,(regexp-opt '("line_comment" "block_comment"
+     (text ,(regexp-opt '("line_comment" "xml_doc" "block_comment"
                           "string" "triple_quoted_string"
                           "verbatim_string" "char")
                         'symbols))
-     (comment ,(regexp-opt '("line_comment" "block_comment")
+     (comment ,(regexp-opt '("line_comment" "xml_doc" "block_comment")
                            'symbols)))))
 
 ;;;; Compilation error support

@@ -70,6 +70,12 @@
 - REPL: `fsharp-ts-repl-require` references a NuGet package via
   `#r "nuget: ..."`.
 
+### Upgrades
+
+- Bump grammar from 0.2.2 to 0.3.3 (#21)
+  Users with an already installed grammar should run
+  `M-x fsharp-ts-mode-install-grammars` with a prefix argument to force the upgrade
+
 ### Bug fixes
 
 - [#16](https://github.com/bbatsov/fsharp-ts-mode/pull/16): Fix
