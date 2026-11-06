@@ -72,6 +72,10 @@
 
 ### Bug fixes
 
+- Share one documentation info panel timer across enabled buffers.  Stop it
+  when the last buffer disables the mode, changes major mode, or is killed,
+  and only update documentation for the selected buffer with info mode enabled.
+
 - [#16](https://github.com/bbatsov/fsharp-ts-mode/pull/16): Fix
   `wrong-number-of-arguments` when starting eglot, as the built-in versions call
   the server contact function with an argument.
