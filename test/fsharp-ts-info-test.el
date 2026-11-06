@@ -71,6 +71,54 @@
     (it "returns nil for items that are all blank"
       (expect (fsharp-ts-info--render-section "Heading:" '("" "  ")) :to-be nil))))
 
+(describe "fsharp-ts-info documentation requests"
+  (let (response)
+    (before-each
+      (setq response nil)
+      (spy-on 'eglot-current-server :and-return-value 'test-server)
+      (spy-on 'eglot--TextDocumentPositionParams :and-return-value
+              '(:textDocument (:uri "file:///tmp/example.fs")
+                :position (:line 3 :character 7)))
+      (spy-on 'jsonrpc-request :and-call-fake (lambda (&rest _) response)))
+
+    (it "decodes the content envelope returned by FsAutoComplete"
+      (setq response
+            (list :content
+                  (concat "{\"Kind\":\"formattedDocumentation\",\"Data\":{"
+                          "\"Signature\":\"val addNumbers: int -> int -> int\","
+                          "\"Comment\":\"Add two integers.\","
+                          "\"FooterLines\":[\"Full name: Example.addNumbers\"],"
+                          "\"Fields\":[]}}")))
+      (let ((rendered (fsharp-ts-info--fetch)))
+        (expect rendered :to-match "val addNumbers: int -> int -> int")
+        (expect rendered :to-match "Add two integers.")
+        (expect rendered :to-match "Full name: Example.addNumbers")))
+
+    (it "returns nil for a null documentation payload"
+      (setq response '(:content "{\"Kind\":\"formattedDocumentation\",\"Data\":null}"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "ignores non-documentation responses"
+      (setq response '(:content "{\"Kind\":\"error\",\"Data\":\"No documentation\"}"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "returns nil when the response has no content"
+      (setq response '(:content nil))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "returns nil for malformed JSON"
+      (setq response '(:content "not JSON"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "handles a failed documentation request"
+      (spy-on 'jsonrpc-request :and-throw-error '(jsonrpc-error "Request failed"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "does not request documentation without a server"
+      (spy-on 'eglot-current-server :and-return-value nil)
+      (expect (fsharp-ts-info--fetch) :to-be nil)
+      (expect 'jsonrpc-request :not :to-have-been-called))))
+
 (describe "fsharp-ts-info timer lifecycle"
   (let (buffers original-timers)
     (before-each

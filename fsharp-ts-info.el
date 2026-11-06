@@ -41,6 +41,7 @@
 ;;; Code:
 
 (require 'eglot)
+(require 'json)
 
 (defgroup fsharp-ts-info nil
   "F# documentation info panel."
@@ -124,13 +125,16 @@ DATA is an alist from the `fsharp/documentation' response."
 Returns the rendered documentation string, or nil."
   (condition-case nil
       (when-let* ((server (eglot-current-server)))
-        (let* ((params (eglot--TextDocumentPositionParams))
-               (result (jsonrpc-request server :fsharp/documentation params
-                                        :timeout 2)))
-          (when result
-            (let ((data (alist-get 'Data result)))
-              (when data
-                (fsharp-ts-info--render data))))))
+        (when-let* ((params (eglot--TextDocumentPositionParams))
+                    (result (jsonrpc-request server :fsharp/documentation params
+                                             :timeout 2))
+                    (content (plist-get result :content))
+                    (response (json-parse-string content :object-type 'alist
+                                                 :null-object nil
+                                                 :false-object nil))
+                    ((equal (alist-get 'Kind response) "formattedDocumentation"))
+                    (data (alist-get 'Data response)))
+          (fsharp-ts-info--render data)))
     (error nil)))
 
 ;;;; Display
