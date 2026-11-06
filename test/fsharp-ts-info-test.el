@@ -4,10 +4,11 @@
 
 ;;; Commentary:
 
-;; Tests for the documentation info panel rendering.
+;; Tests for documentation rendering and automatic update lifecycle.
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'buttercup)
 (require 'fsharp-ts-info)
 
@@ -69,5 +70,163 @@
 
     (it "returns nil for items that are all blank"
       (expect (fsharp-ts-info--render-section "Heading:" '("" "  ")) :to-be nil))))
+
+(describe "fsharp-ts-info documentation requests"
+  (let (response)
+    (before-each
+      (setq response nil)
+      (spy-on 'eglot-current-server :and-return-value 'test-server)
+      (spy-on 'eglot--TextDocumentPositionParams :and-return-value
+              '(:textDocument (:uri "file:///tmp/example.fs")
+                :position (:line 3 :character 7)))
+      (spy-on 'jsonrpc-request :and-call-fake (lambda (&rest _) response)))
+
+    (it "decodes the content envelope returned by FsAutoComplete"
+      (setq response
+            (list :content
+                  (concat "{\"Kind\":\"formattedDocumentation\",\"Data\":{"
+                          "\"Signature\":\"val addNumbers: int -> int -> int\","
+                          "\"Comment\":\"Add two integers.\","
+                          "\"FooterLines\":[\"Full name: Example.addNumbers\"],"
+                          "\"Fields\":[]}}")))
+      (let ((rendered (fsharp-ts-info--fetch)))
+        (expect rendered :to-match "val addNumbers: int -> int -> int")
+        (expect rendered :to-match "Add two integers.")
+        (expect rendered :to-match "Full name: Example.addNumbers")))
+
+    (it "returns nil for a null documentation payload"
+      (setq response '(:content "{\"Kind\":\"formattedDocumentation\",\"Data\":null}"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "ignores non-documentation responses"
+      (setq response '(:content "{\"Kind\":\"error\",\"Data\":\"No documentation\"}"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "returns nil when the response has no content"
+      (setq response '(:content nil))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "returns nil for malformed JSON"
+      (setq response '(:content "not JSON"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "handles a failed documentation request"
+      (spy-on 'jsonrpc-request :and-throw-error '(jsonrpc-error "Request failed"))
+      (expect (fsharp-ts-info--fetch) :to-be nil))
+
+    (it "does not request documentation without a server"
+      (spy-on 'eglot-current-server :and-return-value nil)
+      (expect (fsharp-ts-info--fetch) :to-be nil)
+      (expect 'jsonrpc-request :not :to-have-been-called))))
+
+(describe "fsharp-ts-info timer lifecycle"
+  (let (buffers original-timers)
+    (before-each
+      (setq original-timers (copy-sequence timer-idle-list)
+            buffers (list (generate-new-buffer " *fsharp-info-a*")
+                          (generate-new-buffer " *fsharp-info-b*"))
+            fsharp-ts-info--buffers nil
+            fsharp-ts-info--idle-timer nil
+            fsharp-ts-info--last-position nil))
+
+    (after-each
+      (dolist (buffer buffers)
+        (when (buffer-live-p buffer)
+          (kill-buffer buffer)))
+      ;; Also clean up timers leaked by the old implementation.
+      (dolist (timer (copy-sequence timer-idle-list))
+        (unless (memq timer original-timers)
+          (cancel-timer timer)))
+      (setq fsharp-ts-info--buffers nil
+            fsharp-ts-info--idle-timer nil
+            fsharp-ts-info--last-position nil))
+
+    (it "shares one timer across buffers and repeated enables"
+      (with-current-buffer (car buffers)
+        (fsharp-ts-info-mode 1))
+      (let ((timer fsharp-ts-info--idle-timer))
+        (with-current-buffer (car buffers)
+          (fsharp-ts-info-mode 1))
+        (with-current-buffer (cadr buffers)
+          (fsharp-ts-info-mode 1))
+        (expect fsharp-ts-info--idle-timer :to-be timer)
+        (expect (length fsharp-ts-info--buffers) :to-equal 2)
+        (expect (length timer-idle-list)
+                :to-equal (1+ (length original-timers)))))
+
+    (it "keeps the timer until the last buffer disables the mode"
+      (dolist (buffer buffers)
+        (with-current-buffer buffer (fsharp-ts-info-mode 1)))
+      (let ((timer fsharp-ts-info--idle-timer))
+        (with-current-buffer (car buffers)
+          (fsharp-ts-info-mode -1)
+          (fsharp-ts-info-mode -1))
+        (expect fsharp-ts-info--idle-timer :to-be timer)
+        (expect (memq timer timer-idle-list) :to-be-truthy)
+        (with-current-buffer (cadr buffers) (fsharp-ts-info-mode -1))
+        (expect fsharp-ts-info--idle-timer :to-be nil)
+        (expect (memq timer timer-idle-list) :to-be nil)))
+
+    (it "unregisters killed buffers and releases the cached buffer"
+      (dolist (buffer buffers)
+        (with-current-buffer buffer (fsharp-ts-info-mode 1)))
+      (setq fsharp-ts-info--last-position (cons (car buffers) 1))
+      (let ((timer fsharp-ts-info--idle-timer))
+        (kill-buffer (car buffers))
+        (expect fsharp-ts-info--buffers :to-equal (cdr buffers))
+        (expect fsharp-ts-info--last-position :to-be nil)
+        (expect fsharp-ts-info--idle-timer :to-be timer)
+        (kill-buffer (cadr buffers))
+        (expect fsharp-ts-info--buffers :to-be nil)
+        (expect (memq timer timer-idle-list) :to-be nil)))
+
+    (it "stops updates when the last buffer changes major mode"
+      (with-current-buffer (car buffers)
+        (fsharp-ts-info-mode 1)
+        (let ((timer fsharp-ts-info--idle-timer))
+          (fundamental-mode)
+          (expect fsharp-ts-info-mode :to-be nil)
+          (expect fsharp-ts-info--buffers :to-be nil)
+          (expect fsharp-ts-info--idle-timer :to-be nil)
+          (expect (memq timer timer-idle-list) :to-be nil))))
+
+    (it "keeps other buffers updating across a major-mode change"
+      (dolist (buffer buffers)
+        (with-current-buffer buffer (fsharp-ts-info-mode 1)))
+      (let ((timer fsharp-ts-info--idle-timer))
+        (with-current-buffer (car buffers) (fundamental-mode))
+        (expect fsharp-ts-info--buffers :to-equal (cdr buffers))
+        (expect fsharp-ts-info--idle-timer :to-be timer)
+        (expect (memq timer timer-idle-list) :to-be-truthy)))
+
+    (it "starts a fresh timer after the mode is disabled and re-enabled"
+      (with-current-buffer (car buffers)
+        (fsharp-ts-info-mode 1)
+        (let ((old-timer fsharp-ts-info--idle-timer))
+          (fsharp-ts-info-mode -1)
+          (fsharp-ts-info-mode 1)
+          (expect fsharp-ts-info--idle-timer :not :to-be old-timer)
+          (expect (memq old-timer timer-idle-list) :to-be nil)
+          (expect (memq fsharp-ts-info--idle-timer timer-idle-list)
+                  :to-be-truthy)
+          (expect fsharp-ts-info--buffers :to-equal (list (current-buffer))))))
+
+    (it "updates only the selected buffer when its mode is enabled"
+      (let (fetched)
+        (cl-letf (((symbol-function 'eglot-current-server) (lambda () t))
+                  ((symbol-function 'get-buffer-window) (lambda (&rest _) t))
+                  ((symbol-function 'fsharp-ts-info--fetch)
+                   (lambda () (push (current-buffer) fetched) nil)))
+          (save-window-excursion
+            (switch-to-buffer (car buffers))
+            (setq major-mode 'fsharp-ts-mode)
+            (fsharp-ts-info-mode 1)
+            ;; An idle callback need not start in the selected buffer.
+            (with-current-buffer (cadr buffers)
+              (fsharp-ts-info--update))
+            (expect fetched :to-equal (list (car buffers)))
+            (fsharp-ts-info-mode -1)
+            (fsharp-ts-info--update)
+            (expect fetched :to-equal (list (car buffers)))))))))
 
 ;;; fsharp-ts-info-test.el ends here

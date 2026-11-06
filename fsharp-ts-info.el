@@ -41,6 +41,7 @@
 ;;; Code:
 
 (require 'eglot)
+(require 'json)
 
 (defgroup fsharp-ts-info nil
   "F# documentation info panel."
@@ -58,7 +59,10 @@
   :package-version '(fsharp-ts-mode . "0.1.0"))
 
 (defvar fsharp-ts-info--idle-timer nil
-  "Idle timer for auto-updating the info panel.")
+  "Shared idle timer for auto-updating the info panel.")
+
+(defvar fsharp-ts-info--buffers nil
+  "Buffers with `fsharp-ts-info-mode' enabled.")
 
 (defvar fsharp-ts-info--last-position nil
   "Last position for which documentation was fetched.
@@ -121,31 +125,36 @@ DATA is an alist from the `fsharp/documentation' response."
 Returns the rendered documentation string, or nil."
   (condition-case nil
       (when-let* ((server (eglot-current-server)))
-        (let* ((params (eglot--TextDocumentPositionParams))
-               (result (jsonrpc-request server :fsharp/documentation params
-                                        :timeout 2)))
-          (when result
-            (let ((data (alist-get 'Data result)))
-              (when data
-                (fsharp-ts-info--render data))))))
+        (when-let* ((params (eglot--TextDocumentPositionParams))
+                    (result (jsonrpc-request server :fsharp/documentation params
+                                             :timeout 2))
+                    (content (plist-get result :content))
+                    (response (json-parse-string content :object-type 'alist
+                                                 :null-object nil
+                                                 :false-object nil))
+                    ((equal (alist-get 'Kind response) "formattedDocumentation"))
+                    (data (alist-get 'Data response)))
+          (fsharp-ts-info--render data)))
     (error nil)))
 
 ;;;; Display
 
 (defun fsharp-ts-info--update ()
-  "Update the info panel if point has moved to a new symbol."
-  (when (and (derived-mode-p 'fsharp-ts-mode 'fsharp-ts-signature-mode)
-             (eglot-current-server)
-             (get-buffer-window fsharp-ts-info-buffer-name))
-    (let ((current-pos (cons (current-buffer) (point))))
-      (unless (equal current-pos fsharp-ts-info--last-position)
-        (setq fsharp-ts-info--last-position current-pos)
-        (when-let* ((content (fsharp-ts-info--fetch)))
-          (with-current-buffer (get-buffer-create fsharp-ts-info-buffer-name)
-            (let ((inhibit-read-only t))
-              (erase-buffer)
-              (insert content)
-              (goto-char (point-min)))))))))
+  "Update the info panel for the selected buffer if point has moved."
+  (with-current-buffer (window-buffer (selected-window))
+    (when (and (bound-and-true-p fsharp-ts-info-mode)
+               (derived-mode-p 'fsharp-ts-mode 'fsharp-ts-signature-mode)
+               (eglot-current-server)
+               (get-buffer-window fsharp-ts-info-buffer-name))
+      (let ((current-pos (cons (current-buffer) (point))))
+        (unless (equal current-pos fsharp-ts-info--last-position)
+          (setq fsharp-ts-info--last-position current-pos)
+          (when-let* ((content (fsharp-ts-info--fetch)))
+            (with-current-buffer (get-buffer-create fsharp-ts-info-buffer-name)
+              (let ((inhibit-read-only t))
+                (erase-buffer)
+                (insert content)
+                (goto-char (point-min))))))))))
 
 ;;;###autoload
 (defun fsharp-ts-info-show ()
@@ -172,21 +181,39 @@ while navigating code."
 
 ;;;; Minor mode for auto-update
 
+(defun fsharp-ts-info--disable ()
+  "Disable automatic info updates before killing or changing the buffer mode."
+  (fsharp-ts-info-mode -1))
+
 ;;;###autoload
 (define-minor-mode fsharp-ts-info-mode
   "Minor mode that auto-updates the F# documentation panel on cursor movement.
 
 When enabled, the info panel is updated after `fsharp-ts-info-idle-delay'
 seconds of idle time whenever point moves to a new position.  The panel
-must be visible (use `fsharp-ts-info-show' to open it first)."
+must be visible (use `fsharp-ts-info-show' to open it first).
+All enabled buffers share one idle timer, which stops when the last
+buffer disables the mode, changes major mode, or is killed."
   :lighter " F#-Info"
   (if fsharp-ts-info-mode
-      (setq fsharp-ts-info--idle-timer
-            (run-with-idle-timer fsharp-ts-info-idle-delay t
-                                #'fsharp-ts-info--update))
-    (when fsharp-ts-info--idle-timer
-      (cancel-timer fsharp-ts-info--idle-timer)
-      (setq fsharp-ts-info--idle-timer nil)
+      (progn
+        (add-to-list 'fsharp-ts-info--buffers (current-buffer))
+        (add-hook 'kill-buffer-hook #'fsharp-ts-info--disable nil t)
+        (add-hook 'change-major-mode-hook #'fsharp-ts-info--disable nil t)
+        (unless fsharp-ts-info--idle-timer
+          (setq fsharp-ts-info--idle-timer
+                (run-with-idle-timer fsharp-ts-info-idle-delay t
+                                    #'fsharp-ts-info--update))))
+    (setq fsharp-ts-info--buffers
+          (delq (current-buffer) fsharp-ts-info--buffers))
+    (remove-hook 'kill-buffer-hook #'fsharp-ts-info--disable t)
+    (remove-hook 'change-major-mode-hook #'fsharp-ts-info--disable t)
+    (when (eq (car fsharp-ts-info--last-position) (current-buffer))
+      (setq fsharp-ts-info--last-position nil))
+    (unless fsharp-ts-info--buffers
+      (when fsharp-ts-info--idle-timer
+        (cancel-timer fsharp-ts-info--idle-timer)
+        (setq fsharp-ts-info--idle-timer nil))
       (setq fsharp-ts-info--last-position nil))))
 
 (provide 'fsharp-ts-info)
